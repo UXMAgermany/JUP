@@ -1,0 +1,10 @@
+app_identifier("de.suederbrarup.jup") # The bundle identifier of your app
+
+itc_team_name("Amt Suederbrarup")
+itc_team_id("128385329") # App Store Connect Team ID
+
+team_name("Amt Suederbrarup")
+team_id("2SUWPHKKHW") # Developer Portal Team ID
+
+# For more information about the Appfile, see:
+#     https://docs.fastlane.tools/advanced/#appfile

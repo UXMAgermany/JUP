@@ -1,0 +1,19 @@
+flutter_native_splash:
+  web: false
+  ios: true
+
+  #! FOR ALL PLATFORM, except Android 12+:
+
+  color: '#9A7FFE'
+
+  image: assets/splash/splash.png
+  fullscreen: true # default false
+
+  android_gravity: fill # oder: center, fill, contain, cover
+  ios_content_mode: scaleAspectFill # croppt statt stretchen
+
+  #! ANDROID 12+ configuration:
+  android_12:
+    # background color
+    color: '#9A7FFE'
+    image: assets/icons/JUP.png

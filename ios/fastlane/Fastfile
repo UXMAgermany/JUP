@@ -1,0 +1,63 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and sign the application for distribution, upload to TestFlight"
+  lane :beta do
+    # Create a temporary keychain for CI to avoid conflicts with existing certificates
+    # https://docs.fastlane.tools/actions/setup_ci/
+    setup_ci
+
+    # Download and install the correct signing certificates for the
+    # given build environment, in this case appstore
+    # https://docs.fastlane.tools/actions/match/
+    match(type: 'appstore', readonly: true)
+
+    # Login to App Store Connect in order to perform actions later
+    # in this process. Configuration provided by environment variables added
+    # by the GitLab Apple Apps Store integration
+    # https://docs.gitlab.com/ee/user/project/integrations/apple_app_store.html
+    # https://docs.fastlane.tools/actions/app_store_connect_api_key/
+    app_store_connect_api_key(
+      is_key_content_base64: true
+    )
+
+    # https://docs.fastlane.tools/actions/increment_build_number/
+    # https://docs.fastlane.tools/actions/latest_testflight_build_number/
+    increment_build_number(
+      build_number: ENV['CI_PIPELINE_ID'],
+      xcodeproj: "Runner.xcodeproj"
+    )
+
+    # Build the app with the supplied configuration settings
+    # Export method is the same as the match step above
+    # Note: the difference between `appstore` and `app-store` is intentional
+    # https://docs.fastlane.tools/actions/build_app/
+    build_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      configuration: "Release",
+      export_method: "app-store"
+    )
+
+    # Upload the newly created build to Test Flight using the App Store Connect
+    # API key above, and the app configuration in the Appfile
+    # https://docs.fastlane.tools/actions/upload_to_testflight/
+    upload_to_testflight
+  end
+
+end
