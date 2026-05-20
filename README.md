@@ -1,4 +1,4 @@
-# JUP - Jugendapp
+# JUP! - Jugendapp
 
 > **JU**gendap**P** für das Amt Süderbrarup
 
@@ -11,13 +11,17 @@ A modern Flutter mobile application connecting youth in the Amt Süderbrarup com
 
 ## 📱 About
 
-JUP is a community engagement platform designed for young people in Süderbrarup. The app provides:
+JUP! is a community engagement platform designed for young people in Süderbrarup. The app provides:
 
 - **Events** - Discover and participate in local events with categories like sports, music, food, gaming, DIY
-- **Surveys & Polls** - Vote on community topics with yes/no polls and multiple-choice surveys
+- **Surveys & Polls** - Vote on community topics with yes/no polls, multiple-choice surveys, and multi-vote elections ("Wahl"); users can submit and vote on custom free-text options
 - **News** - Stay updated with local news and announcements
 - **Shorts** - Watch and engage with short video content
 - **Comments** - Discuss and interact on events, surveys, and news
+- **Help** - Browse local help offerings and frequently asked questions (FAQs)
+- **Profile** - Customise your avatar and manage your account
+- **Push Notifications** - Stay informed about new events, surveys, and accepted survey contributions
+- **Content Reporting** - Report inappropriate content on comments and shorts
 
 ## 🏗️ Architecture
 
@@ -37,10 +41,13 @@ JUP is a community engagement platform designed for young people in Süderbrarup
 lib/
 ├── features/              # Feature modules
 │   ├── auth/             # Authentication & user management
+│   ├── content/          # Static content (FAQs, Markdown screens)
 │   ├── events/           # Event browsing and participation
-│   ├── surveys/          # Surveys and polls
+│   ├── files/            # File downloads (e.g. WiFi password)
 │   ├── news/             # News articles
-│   └── shorts/           # Short videos
+│   ├── profile/          # User profile and avatar
+│   ├── shorts/           # Short videos
+│   └── surveys/          # Surveys and polls
 ├── router/               # AutoRoute navigation configuration
 ├── shared/               # Shared utilities and widgets
 │   ├── controllers/      # Session management, API config
@@ -403,7 +410,7 @@ The app includes **optional** Matomo analytics with strict privacy protections:
 - ✅ **Age verification**: Only users 16+ can enable tracking (GDPR Art. 8)
 - ✅ **Pseudonymization**: User IDs are SHA-256 hashed before sending
 - ✅ **Conditional**: Checkbox only shown to users 16+
-- ✅ **Transparent**: Users are informed data is "pseudonymisiert"
+- ✅ **Transparent**: Users are informed data is pseudonymized
 
 **For developers:**
 
@@ -443,4 +450,4 @@ If you find a bug or security issue, please report it via the issue tracker.
 
 ---
 
-Built with ❤️ for the youth of Süderbrarup
+JUP! - Team 💜
