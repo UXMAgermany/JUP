@@ -1,30 +1,33 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/features/news/controllers/news_filter_provider.dart';
 import 'package:jup/features/news/controllers/news_provider.dart';
 import 'package:jup/features/news/controllers/wifi_password_provider.dart';
 import 'package:jup/features/news/models/news_model.dart';
-import 'package:jup/features/news/widgets/jup_banner.dart';
 import 'package:jup/features/news/widgets/news_card.dart';
 import 'package:jup/features/news/widgets/wifi_password_banner.dart';
 import 'package:jup/features/news/widgets/wifi_password_dismiss_sheet.dart';
 import 'package:jup/features/shorts/controllers/shorts_provider.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
+import 'package:jup/router/models/navigation_entry.dart';
+import 'package:jup/router/screens/main_page.dart';
 import 'package:jup/shared/controllers/scroll_controller_provider.dart';
+import 'package:jup/shared/controllers/seen_posts_provider.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:jup/shared/utils/badge_helper.dart';
 import 'package:jup/shared/utils/date_format_helper.dart';
+import 'package:jup/shared/utils/unseen_sort_helper.dart';
+import 'package:jup/shared/widgets/category_dropdown.dart';
 import 'package:jup/shared/widgets/connection_error_widget.dart';
 import 'package:jup/shared/widgets/empty_state.dart';
-import 'package:jup/shared/widgets/category_dropdown.dart';
+import 'package:jup/shared/widgets/jup_bottom_sheet.dart';
 import 'package:jup/shared/widgets/shorts_preview_section.dart';
 import 'package:jup/shared/widgets/text.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:visibility_detector/visibility_detector.dart';
-import 'package:jup/shared/controllers/seen_posts_provider.dart';
-import 'package:jup/shared/utils/badge_helper.dart';
-import 'package:jup/shared/utils/unseen_sort_helper.dart';
 
 @RoutePage()
 class NewsOverviewPage extends ConsumerStatefulWidget {
@@ -48,9 +51,10 @@ class _NewsOverviewPageState extends ConsumerState<NewsOverviewPage> {
     // Register scroll controller for News tab (index 0)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ref
-            .read(scrollControllerProvider.notifier)
-            .registerController(0, _scrollController);
+        ref.read(scrollControllerProvider.notifier).registerController(
+              tabIndexOf(NavigationElement.news),
+              _scrollController,
+            );
         _isRegistered = true;
       }
     });
@@ -97,7 +101,9 @@ class _NewsOverviewPageState extends ConsumerState<NewsOverviewPage> {
   void dispose() {
     if (_isRegistered) {
       try {
-        ref.read(scrollControllerProvider.notifier).unregisterController(0);
+        ref
+            .read(scrollControllerProvider.notifier)
+            .unregisterController(tabIndexOf(NavigationElement.news));
       } catch (_) {
         // Widget already disposed, skip unregistration
       }
@@ -132,9 +138,8 @@ class _NewsOverviewPageState extends ConsumerState<NewsOverviewPage> {
 
     // Show confirmation bottom sheet
     if (!mounted) return;
-    final result = await showModalBottomSheet<Map<String, dynamic>>(
+    final result = await showJupBottomSheet<Map<String, dynamic>>(
       context: context,
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
       builder: (_) => const WifiPasswordDismissSheet(),
     );
 
@@ -192,7 +197,7 @@ class _NewsOverviewPageState extends ConsumerState<NewsOverviewPage> {
           context.router.replaceAll([const NewsLoggedOutRoute()]);
         }
       });
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Center(child: CircularProgressIndicator());
     }
 
     String getFilterLabel(NewsCategory filter) {
@@ -214,178 +219,183 @@ class _NewsOverviewPageState extends ConsumerState<NewsOverviewPage> {
       }
     }
 
-    return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.read(seenPostsProvider.notifier).flushPending();
-          setState(() {
-            _displayLimit = 5;
-          });
-          // Refresh all data sources
-          await Future.wait([
-            ref.read(newsListProvider.notifier).refresh(),
-            ref.read(shortsListProvider.notifier).refresh(),
-            ref.refresh(wifiPasswordProvider.future),
-          ]);
-        },
-        child: ListView(
-          controller: _scrollController,
-          cacheExtent: 500, // Limit the cache to reduce memory usage
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.read(seenPostsProvider.notifier).flushPending();
+        setState(() {
+          _displayLimit = 5;
+        });
+        // Refresh all data sources
+        await Future.wait([
+          ref.read(newsListProvider.notifier).refresh(),
+          ref.read(shortsListProvider.notifier).refresh(),
+          ref.refresh(wifiPasswordProvider.future),
+        ]);
+      },
+      child: ListView(
+        controller: _scrollController,
+        scrollCacheExtent: const ScrollCacheExtent.pixels(
+          500,
+        ), // Limit the cache to reduce memory usage
 
-          children: [
-            SizedBox(height: 16),
-            // Always visible banner at the top
-            const JupBanner(),
-            // WiFi password card (dismissible)
-            if (!_wifiPasswordBannerDismissed)
-              wifiPasswordAsyncValue.when(
-                data: (wifiPassword) {
-                  return WifiPasswordBanner(
-                    wifiPassword: wifiPassword,
-                    onDismiss: _handleWifiPasswordDismiss,
-                  ).withPaddingX(16);
-                },
-                loading: () => Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerLowest,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(child: CircularProgressIndicator()),
-                ),
-                error: (error, stack) => Container(),
-              ),
-            if (!_wifiPasswordBannerDismissed) const SizedBox(height: 16),
-            ShortsPreviewSection(
-              onShortTap: (index) {
-                context.router.push(ShortsFeedRoute(initialIndex: index));
+        children: [
+          SizedBox(height: 16),
+          // WiFi password card (dismissible)
+          if (!_wifiPasswordBannerDismissed)
+            wifiPasswordAsyncValue.when(
+              data: (wifiPassword) {
+                return WifiPasswordBanner(
+                  wifiPassword: wifiPassword,
+                  onDismiss: _handleWifiPasswordDismiss,
+                ).withPaddingX(16);
               },
-            ).withPaddingX(16),
-            HeadlineSmallEmphasized(text: "News").withPadding(16, 0, 16, 4),
-            CategoryDropdown<NewsCategory>(
-              categories: const [
-                NewsCategory.sport,
-                NewsCategory.music,
-                NewsCategory.events,
-                NewsCategory.food,
-                NewsCategory.gaming,
-                NewsCategory.other,
-              ],
-              selectedCategories: selectedNewsFilters,
-              labelBuilder: getFilterLabel,
-              onToggle: (category) =>
-                  ref.read(newsFilterProvider.notifier).toggle(category),
-            ).withPadding(16, 0, 16, 4),
-            newsAsyncValue.when(
-              data: (allNews) {
-                final filteredNews = selectedNewsFilters.isEmpty
-                    ? allNews
-                    : allNews
-                        .where(
-                          (entry) =>
-                              selectedNewsFilters.contains(entry.category),
-                        )
-                        .toList();
+              loading: () => Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+              error: (error, stack) => Container(),
+            ),
+          if (!_wifiPasswordBannerDismissed) const SizedBox(height: 16),
+          ShortsPreviewSection(
+            onShortTap: (index) {
+              context.router.push(ShortsFeedRoute(initialIndex: index));
+            },
+          ).withPaddingX(16),
+          HeadlineSmallEmphasized(text: "News").withPadding(16, 0, 16, 4),
+          CategoryDropdown<NewsCategory>(
+            categories: const [
+              NewsCategory.sport,
+              NewsCategory.music,
+              NewsCategory.events,
+              NewsCategory.food,
+              NewsCategory.gaming,
+              NewsCategory.other,
+            ],
+            selectedCategories: selectedNewsFilters,
+            labelBuilder: getFilterLabel,
+            onToggle: (category) =>
+                ref.read(newsFilterProvider.notifier).toggle(category),
+          ).withPadding(16, 0, 16, 4),
+          newsAsyncValue.when(
+            data: (allNews) {
+              final filteredNews = selectedNewsFilters.isEmpty
+                  ? allNews
+                  : allNews
+                      .where(
+                        (entry) => selectedNewsFilters.contains(entry.category),
+                      )
+                      .toList();
 
-                if (filteredNews.isEmpty) {
-                  return EmptyState(
-                    title: "Ganz schön leer hier!",
-                    message: selectedNewsFilters.isEmpty
-                        ? "Hier ist noch nichts los. Schau später nochmal rein, um die neuesten Beiträge und Infos zu sehen!"
-                        : "Für die ausgewählten Filter gibt es keine News. Probiere andere Filter aus!",
-                  ).withPadding(16, 0, 16, 16);
-                }
+              if (filteredNews.isEmpty) {
+                return EmptyState(
+                  title: "Ganz schön leer hier!",
+                  message: selectedNewsFilters.isEmpty
+                      ? "Hier ist noch nichts los. Schau später nochmal rein, um die neuesten Beiträge und Infos zu sehen!"
+                      : "Für die ausgewählten Filter gibt es keine News. Probiere andere Filter aus!",
+                ).withPadding(16, 0, 16, 16);
+              }
 
-                final sortedNews = sortWithBadges(filteredNews, seenPosts, (e) => e.documentId, (_) => false);
+              final sortedNews = sortWithBadges(
+                filteredNews,
+                seenPosts,
+                (e) => e.documentId,
+                (_) => false,
+              );
 
-                final displayedNews = _displayLimit != null
-                    ? sortedNews.take(_displayLimit!).toList()
-                    : sortedNews;
+              final displayedNews = _displayLimit != null
+                  ? sortedNews.take(_displayLimit!).toList()
+                  : sortedNews;
 
-                return Column(
-                  children: [
-                    ...displayedNews.map(
-                      (entry) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: RepaintBoundary(
-                          child: VisibilityDetector(
-                            key: Key('news_${entry.documentId}'),
-                            onVisibilityChanged: (info) {
-                              if (info.visibleFraction > 0.5) {
-                                ref.read(seenPostsProvider.notifier).markAsSeen(entry.documentId);
-                              }
-                            },
-                            child: NewsCard(
-                              isNew: isNewPost(
-                                documentId: entry.documentId,
-                                createdAt: entry.createdAt,
-                                seenPosts: seenPosts,
-                                isLoaded: ref.read(seenPostsProvider.notifier).isLoaded,
-                                firstLaunchDate: ref.read(seenPostsProvider.notifier).firstLaunchDate,
-                              ),
-                              header: entry.title,
-                              subhead: entry.subTitle,
-                              text: entry.text,
-                              date: DateFormatHelper.formatDate(
-                                entry.createdAt,
-                              ),
-                              author: entry.author,
-                              imageUrl: entry.imageUrl,
-                              category: entry.category,
-                              onTap: () {
-                                context.router.push(
-                                  NewsDetailRoute(newsEntry: entry),
-                                );
-                              },
+              return Column(
+                children: [
+                  ...displayedNews.map(
+                    (entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: RepaintBoundary(
+                        child: VisibilityDetector(
+                          key: Key('news_${entry.documentId}'),
+                          onVisibilityChanged: (info) {
+                            if (info.visibleFraction > 0.5) {
+                              ref
+                                  .read(seenPostsProvider.notifier)
+                                  .markAsSeen(entry.documentId);
+                            }
+                          },
+                          child: NewsCard(
+                            isNew: isNewPost(
+                              documentId: entry.documentId,
+                              createdAt: entry.createdAt,
+                              seenPosts: seenPosts,
+                              isLoaded:
+                                  ref.read(seenPostsProvider.notifier).isLoaded,
+                              firstLaunchDate: ref
+                                  .read(seenPostsProvider.notifier)
+                                  .firstLaunchDate,
                             ),
+                            header: entry.title,
+                            subhead: entry.subTitle,
+                            text: entry.text,
+                            date: DateFormatHelper.formatDate(entry.createdAt),
+                            author: entry.author,
+                            imageUrl: entry.imageUrl,
+                            category: entry.category,
+                            onTap: () {
+                              context.router.push(
+                                NewsDetailRoute(newsEntry: entry),
+                              );
+                            },
                           ),
                         ),
                       ),
                     ),
-                    if (_displayLimit != null &&
-                        sortedNews.length > _displayLimit!)
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            if (_displayLimit == 5) {
-                              _displayLimit = 15;
-                            } else {
-                              _displayLimit = null;
-                            }
-                          });
-                        },
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.add, size: 20),
-                            const SizedBox(width: 4),
-                            LabelLarge(
-                              text: _displayLimit == 5
-                                  ? 'Mehr laden'
-                                  : 'Alle laden',
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ],
-                        ),
+                  ),
+                  if (_displayLimit != null &&
+                      sortedNews.length > _displayLimit!)
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          if (_displayLimit == 5) {
+                            _displayLimit = 15;
+                          } else {
+                            _displayLimit = null;
+                          }
+                        });
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add, size: 20),
+                          const SizedBox(width: 4),
+                          LabelLarge(
+                            text: _displayLimit == 5
+                                ? 'Mehr laden'
+                                : 'Alle laden',
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ],
                       ),
-                  ],
-                ).withPaddingX(16);
-              },
-              loading: () => const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32.0),
-                  child: CircularProgressIndicator(),
-                ),
+                    ),
+                ],
+              ).withPaddingX(16);
+            },
+            loading: () => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32.0),
+                child: CircularProgressIndicator(),
               ),
-              error: (error, stack) => Center(
-                child: ConnectionErrorWidget(
-                  errorMessage: error.toString(),
-                  onRetry: () => ref.invalidate(newsListProvider),
-                ),
-              ).withPaddingX(16),
             ),
-          ],
-        ),
+            error: (error, stack) => Center(
+              child: ConnectionErrorWidget(
+                errorMessage: error.toString(),
+                onRetry: () => ref.invalidate(newsListProvider),
+              ),
+            ).withPaddingX(16),
+          ),
+        ],
       ),
     );
   }

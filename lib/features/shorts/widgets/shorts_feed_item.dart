@@ -272,7 +272,7 @@ class _ShortsFeedItemState extends ConsumerState<ShortsFeedItem>
             // Close button
             Positioned(
               left: 0,
-              top: 40,
+              top: 40 + MediaQuery.viewPaddingOf(context).top,
               child: IconButton(
                 icon: const Icon(
                   Icons.arrow_back,
@@ -343,7 +343,12 @@ class _BottomSection extends StatelessWidget {
             ],
           ),
         ),
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          40 + MediaQuery.viewPaddingOf(context).bottom,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -379,7 +384,7 @@ class _ActionButtons extends StatelessWidget {
   Widget build(BuildContext context) {
     return Positioned(
       right: 0,
-      top: 40,
+      top: 40 + MediaQuery.viewPaddingOf(context).top,
       child: Column(
         children: [
           IconButton(
@@ -392,7 +397,7 @@ class _ActionButtons extends StatelessWidget {
               final deepLink = deepLinkService.generateShortsLink(
                 shortsEntry.documentId,
               );
-              await Share.share(deepLink);
+              await SharePlus.instance.share(ShareParams(text: deepLink));
             },
           ),
           IconButton(

@@ -7,6 +7,8 @@ import 'package:jup/features/news/controllers/news_provider.dart';
 import 'package:jup/features/news/widgets/news_card.dart';
 import 'package:jup/features/shorts/controllers/shorts_provider.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
+import 'package:jup/router/models/navigation_entry.dart';
+import 'package:jup/router/screens/main_page.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/utils/date_format_helper.dart';
 import 'package:jup/shared/widgets/empty_state.dart';
@@ -35,7 +37,10 @@ class _NewsLoggedOutPageState extends ConsumerState<NewsLoggedOutPage> {
       if (mounted) {
         ref
             .read(scrollControllerProvider.notifier)
-            .registerController(0, _scrollController);
+            .registerController(
+              tabIndexOf(NavigationElement.news),
+              _scrollController,
+            );
         _isRegistered = true;
       }
     });
@@ -45,7 +50,9 @@ class _NewsLoggedOutPageState extends ConsumerState<NewsLoggedOutPage> {
   void dispose() {
     if (_isRegistered) {
       try {
-        ref.read(scrollControllerProvider.notifier).unregisterController(0);
+        ref
+            .read(scrollControllerProvider.notifier)
+            .unregisterController(tabIndexOf(NavigationElement.news));
       } catch (_) {
         // Widget already disposed, skip unregistration
       }
@@ -65,24 +72,20 @@ class _NewsLoggedOutPageState extends ConsumerState<NewsLoggedOutPage> {
       });
     }
 
-    return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: () async {
-          // Refresh all data sources
-          await Future.wait([
-            ref.read(newsListProvider.notifier).refresh(),
-            ref.read(shortsListProvider.notifier).refresh(),
-          ]);
-        },
-        child: CustomScrollView(
-          controller: _scrollController,
-          slivers: [
-            SliverAppBar(
-              expandedHeight: 324,
-              floating: false,
-              pinned: false,
-              flexibleSpace: FlexibleSpaceBar(background: WelcomeHeaderLarge()),
-            ),
+    return RefreshIndicator(
+      onRefresh: () async {
+        // Refresh all data sources
+        await Future.wait([
+          ref.read(newsListProvider.notifier).refresh(),
+          ref.read(shortsListProvider.notifier).refresh(),
+        ]);
+      },
+      child: CustomScrollView(
+        controller: _scrollController,
+        slivers: [
+          SliverToBoxAdapter(
+            child: WelcomeHeaderLarge(),
+          ),
             SliverPadding(
               padding: const EdgeInsets.all(16),
               sliver: SliverList(
@@ -188,13 +191,12 @@ class _NewsLoggedOutPageState extends ConsumerState<NewsLoggedOutPage> {
                           ],
                         )),
                   ),
-                  const SizedBox(height: 80), // Space for bottom nav bar
+                  const SizedBox(height: 24),
                 ]),
               ),
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }

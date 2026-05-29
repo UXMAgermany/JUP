@@ -20,8 +20,9 @@ class EventParticipationButton extends StatelessWidget {
       height: 32,
       child: FilledButton.icon(
         onPressed: (isDisabled || isLoading) ? null : onTap,
-        label:
-            isParticipating ? Text("Jup, bin dabei") : Text("Jup, bin dabei"),
+        label: isParticipating
+            ? Text("Jup, bin dabei")
+            : Text("Jup, bin dabei"),
         icon: isLoading
             ? SizedBox(
                 width: 20,
@@ -39,13 +40,13 @@ class EventParticipationButton extends StatelessWidget {
         style: FilledButton.styleFrom(
           disabledBackgroundColor: isLoading
               ? (isParticipating
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.surfaceContainerHigh)
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.surfaceContainerHigh)
               : Colors.transparent,
           disabledForegroundColor: isLoading
               ? (isParticipating
-                  ? Theme.of(context).colorScheme.onPrimary
-                  : Theme.of(context).colorScheme.onSurfaceVariant)
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : Theme.of(context).colorScheme.onSurfaceVariant)
               : const Color(0xFFA8A9AA),
           backgroundColor: isParticipating
               ? Theme.of(context).colorScheme.primary

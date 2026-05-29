@@ -6,6 +6,8 @@ import 'package:jup/features/auth/widgets/welcome_header.dart';
 import 'package:jup/features/events/controllers/events_provider.dart';
 import 'package:jup/features/events/widgets/event_card.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
+import 'package:jup/router/models/navigation_entry.dart';
+import 'package:jup/router/screens/main_page.dart';
 import 'package:jup/shared/controllers/scroll_controller_provider.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/widgets/connection_error_widget.dart';
@@ -36,7 +38,10 @@ class _EventsLoggedOutPageState extends ConsumerState<EventsLoggedOutPage> {
       if (mounted) {
         ref
             .read(scrollControllerProvider.notifier)
-            .registerController(1, _scrollController);
+            .registerController(
+              tabIndexOf(NavigationElement.events),
+              _scrollController,
+            );
         _isRegistered = true;
       }
     });
@@ -46,7 +51,9 @@ class _EventsLoggedOutPageState extends ConsumerState<EventsLoggedOutPage> {
   void dispose() {
     if (_isRegistered) {
       try {
-        ref.read(scrollControllerProvider.notifier).unregisterController(1);
+        ref
+            .read(scrollControllerProvider.notifier)
+            .unregisterController(tabIndexOf(NavigationElement.events));
       } catch (_) {
         // Widget already disposed, skip unregistration
       }
@@ -73,191 +80,175 @@ class _EventsLoggedOutPageState extends ConsumerState<EventsLoggedOutPage> {
       });
     }
 
-    return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: () async {
-          // Refresh events on drag down
-          await ref.read(eventsListProvider.notifier).refresh();
-        },
-        child: eventsAsyncValue.when(
-          data: (eventsList) {
-            // Sort events: upcoming first (by startTime asc), then past (by startTime desc)
-            final now = DateTime.now();
-            final sortedEvents = [...eventsList]..sort((a, b) {
-                final aIsPast = a.startTime.isBefore(now);
-                final bIsPast = b.startTime.isBefore(now);
+    return RefreshIndicator(
+      onRefresh: () async {
+        // Refresh events on drag down
+        await ref.read(eventsListProvider.notifier).refresh();
+      },
+      child: eventsAsyncValue.when(
+        data: (eventsList) {
+          // Sort events: upcoming first (by startTime asc), then past (by startTime desc)
+          final now = DateTime.now();
+          final sortedEvents = [...eventsList]
+            ..sort((a, b) {
+              final aIsPast = a.startTime.isBefore(now);
+              final bIsPast = b.startTime.isBefore(now);
 
-                if (aIsPast != bIsPast) {
-                  // Upcoming events first
-                  return aIsPast ? 1 : -1;
-                }
+              if (aIsPast != bIsPast) {
+                // Upcoming events first
+                return aIsPast ? 1 : -1;
+              }
 
-                if (aIsPast) {
-                  // Both past: newest first
-                  return b.startTime.compareTo(a.startTime);
-                } else {
-                  // Both upcoming: earliest first
-                  return a.startTime.compareTo(b.startTime);
-                }
-              });
+              if (aIsPast) {
+                // Both past: newest first
+                return b.startTime.compareTo(a.startTime);
+              } else {
+                // Both upcoming: earliest first
+                return a.startTime.compareTo(b.startTime);
+              }
+            });
 
-            // Filter popular events (>= 5 participants) - only from upcoming events
-            final popularEvents = sortedEvents
-                .where((event) => event.participantCount >= 5 && !event.isPast)
-                .take(3)
-                .toList();
+          // Filter popular events (>= 5 participants) - only from upcoming events
+          final popularEvents = sortedEvents
+              .where((event) => event.participantCount >= 5 && !event.isPast)
+              .take(3)
+              .toList();
 
-            // Get notifier for loadMore status
-            final notifier = ref.read(eventsListProvider.notifier);
-            final isLoadingMore = notifier.isLoadingMore;
-            final hasMore = notifier.hasMore;
+          // Get notifier for loadMore status
+          final notifier = ref.read(eventsListProvider.notifier);
+          final isLoadingMore = notifier.isLoadingMore;
+          final hasMore = notifier.hasMore;
 
-            return CustomScrollView(
-              controller: _scrollController,
-              slivers: [
-                // Welcome Header
-                SliverAppBar(
-                  expandedHeight: 240,
-                  floating: false,
-                  pinned: false,
-                  flexibleSpace: FlexibleSpaceBar(background: WelcomeHeader()),
-                ),
+          return CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              // Welcome Header
+              const SliverToBoxAdapter(child: WelcomeHeader()),
 
-                // Popular Events Section (horizontal)
-                if (popularEvents.isNotEmpty) ...[
-                  SliverToBoxAdapter(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        HeadlineSmallEmphasized(
-                          text: "Beliebt",
-                        ).withPadding(16, 24, 16, 0),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 336,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: popularEvents.length,
-                            separatorBuilder: (context, index) =>
-                                const SizedBox(width: 12),
-                            itemBuilder: (context, index) {
-                              final event = popularEvents[index];
-                              return EventCardWrapper(
-                                event: event,
-                                isFullWidth: false,
-                                onTap: () {
-                                  LoginRequiredDialog.show(
-                                    context,
-                                    message:
-                                        'Melde dich an und entdecke alle unsere Inhalte!',
-                                  );
-                                },
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                // "Alle" Header
+              // Popular Events Section (horizontal)
+              if (popularEvents.isNotEmpty) ...[
                 SliverToBoxAdapter(
-                  child: HeadlineSmallEmphasized(
-                    text: "Alle",
-                  ).withPadding(16, 24, 8, 12),
-                ),
-
-                // All Events List (vertical)
-                if (sortedEvents.isEmpty)
-                  SliverPadding(
-                    padding: const EdgeInsets.all(16),
-                    sliver: SliverToBoxAdapter(
-                      child: EmptyState(
-                        title: "Ganz schön leer hier!",
-                        message:
-                            "Hier ist noch nichts los. Schau später nochmal rein, um die neuesten Beiträge und Infos zu sehen!",
-                      ),
-                    ),
-                  )
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        // Loading indicator at the end
-                        if (index == sortedEvents.length) {
-                          if (!hasMore) return const SizedBox.shrink();
-                          return Padding(
-                            padding: const EdgeInsets.all(32),
-                            child: Center(
-                              child: isLoadingMore
-                                  ? const CircularProgressIndicator()
-                                  : const SizedBox.shrink(),
-                            ),
-                          );
-                        }
-
-                        // Event Card
-                        final event = sortedEvents[index];
-                        return EventCard(
-                          event: event,
-                          isFullWidth: true,
-                          isDisabled: false,
-                          isPast: event.isPast,
-                          onTap: () {
-                            LoginRequiredDialog.show(
-                              context,
-                              message:
-                                  'Melde dich an und entdecke alle unsere Inhalte!',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      HeadlineSmallEmphasized(
+                        text: "Beliebt",
+                      ).withPadding(16, 24, 16, 0),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 336,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: popularEvents.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(width: 12),
+                          itemBuilder: (context, index) {
+                            final event = popularEvents[index];
+                            return EventCardWrapper(
+                              event: event,
+                              isFullWidth: false,
+                              onTap: () {
+                                LoginRequiredDialog.show(
+                                  context,
+                                  message:
+                                      'Melde dich an und entdecke alle unsere Inhalte!',
+                                );
+                              },
                             );
                           },
-                        ).withPaddingBottom(8);
-                      }, childCount: sortedEvents.length + (hasMore ? 1 : 0)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              // "Alle" Header
+              SliverToBoxAdapter(
+                child: HeadlineSmallEmphasized(
+                  text: "Alle",
+                ).withPadding(16, 24, 8, 12),
+              ),
+
+              // All Events List (vertical)
+              if (sortedEvents.isEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverToBoxAdapter(
+                    child: EmptyState(
+                      title: "Ganz schön leer hier!",
+                      message:
+                          "Hier ist noch nichts los. Schau später nochmal rein, um die neuesten Beiträge und Infos zu sehen!",
                     ),
                   ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      // Loading indicator at the end
+                      if (index == sortedEvents.length) {
+                        if (!hasMore) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Center(
+                            child: isLoadingMore
+                                ? const CircularProgressIndicator()
+                                : const SizedBox.shrink(),
+                          ),
+                        );
+                      }
 
-                // Bottom spacing for nav bar
-                const SliverToBoxAdapter(child: SizedBox(height: 80)),
-              ],
-            );
-          },
-          loading: () => CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                expandedHeight: 240,
-                floating: false,
-                pinned: false,
-                flexibleSpace: FlexibleSpaceBar(background: WelcomeHeader()),
-              ),
-              const SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 200,
-                  child: Center(child: CircularProgressIndicator()),
+                      // Event Card
+                      final event = sortedEvents[index];
+                      return EventCard(
+                        event: event,
+                        isFullWidth: true,
+                        isDisabled: false,
+                        isPast: event.isPast,
+                        onTap: () {
+                          LoginRequiredDialog.show(
+                            context,
+                            message:
+                                'Melde dich an und entdecke alle unsere Inhalte!',
+                          );
+                        },
+                      ).withPaddingBottom(8);
+                    }, childCount: sortedEvents.length + (hasMore ? 1 : 0)),
+                  ),
                 ),
-              ),
+
+              // Bottom spacing for nav bar
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
             ],
-          ),
-          error: (error, stack) => CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                expandedHeight: 240,
-                floating: false,
-                pinned: false,
-                flexibleSpace: FlexibleSpaceBar(background: WelcomeHeader()),
+          );
+        },
+        loading: () => CustomScrollView(
+          slivers: [
+            const SliverToBoxAdapter(child: WelcomeHeader()),
+            const SliverToBoxAdapter(
+              child: SizedBox(
+                height: 200,
+                child: Center(child: CircularProgressIndicator()),
               ),
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: ConnectionErrorWidget(
-                    errorMessage: error.toString(),
-                    onRetry: () => ref.invalidate(eventsListProvider),
-                  ).withPadding(16, 32, 16, 16),
-                ),
+            ),
+          ],
+        ),
+        error: (error, stack) => CustomScrollView(
+          slivers: [
+            const SliverToBoxAdapter(child: WelcomeHeader()),
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: ConnectionErrorWidget(
+                  errorMessage: error.toString(),
+                  onRetry: () => ref.invalidate(eventsListProvider),
+                ).withPadding(16, 32, 16, 16),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

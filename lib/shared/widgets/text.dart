@@ -83,18 +83,33 @@ class TitleLarge extends StatelessWidget {
 }
 
 class TitleLargeEmphasized extends StatelessWidget {
-  const TitleLargeEmphasized({super.key, required this.text, this.color});
+  const TitleLargeEmphasized({
+    super.key,
+    required this.text,
+    this.color,
+    this.softWrap,
+    this.maxLines,
+    this.overflow,
+    this.textAlign,
+  });
   final String text;
   final Color? color;
+  final bool? softWrap;
+  final int? maxLines;
+  final TextOverflow? overflow;
+  final TextAlign? textAlign;
 
   @override
   Widget build(BuildContext context) {
     return Text(
       text,
+      textAlign: textAlign,
+      softWrap: softWrap ?? true,
+      maxLines: maxLines,
       style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w500,
             color: color,
-            overflow: TextOverflow.ellipsis,
+            overflow: overflow ?? TextOverflow.ellipsis,
           ),
     );
   }
@@ -104,11 +119,13 @@ class TitleMedium extends StatelessWidget {
   const TitleMedium({
     super.key,
     required this.text,
+    this.color,
     this.softWrap,
     this.maxLines,
     this.overflow,
   });
   final String text;
+  final Color? color;
   final int? maxLines;
   final TextOverflow? overflow;
   final bool? softWrap;
@@ -117,7 +134,7 @@ class TitleMedium extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: Theme.of(context).textTheme.titleMedium,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(color: color),
       overflow: overflow,
       maxLines: maxLines,
       softWrap: softWrap ?? true,

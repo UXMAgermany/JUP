@@ -143,6 +143,18 @@ class MockStrapiClient extends _i1.Mock implements _i3.StrapiClient {
           as _i5.Future<_i2.Response>);
 
   @override
+  _i5.Future<int> uploadFile(String? filePath, {bool? useUserAuth = true}) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #uploadFile,
+              [filePath],
+              {#useUserAuth: useUserAuth},
+            ),
+            returnValue: _i5.Future<int>.value(0),
+          )
+          as _i5.Future<int>);
+
+  @override
   _i5.Future<_i2.Response> delete(String? path, {bool? useUserAuth = false}) =>
       (super.noSuchMethod(
             Invocation.method(#delete, [path], {#useUserAuth: useUserAuth}),

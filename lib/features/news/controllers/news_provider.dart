@@ -1,7 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:jup/features/news/controllers/news_controller.dart';
+import 'package:jup/features/news/controllers/news_create_form_provider.dart';
 import 'package:jup/features/news/models/news_model.dart';
 import 'package:jup/shared/controllers/paginated_list_notifier.dart';
+import 'package:jup/shared/models/pending_content_block.dart';
 import 'package:jup/shared/services/api_client.dart';
 
 /// Provider for the NewsController
@@ -67,3 +70,72 @@ final newsDetailProvider = FutureProvider.family<NewsEntry, String>((
   final controller = ref.watch(newsControllerProvider);
   return await controller.fetchNewsById(documentId);
 });
+
+/// Submit-state notifier for the admin News-create flow. Accepts the
+/// raw form state, uploads any pending media, maps it to [NewsCreateInput]
+/// and dispatches to the CMS controller.
+class NewsCreateNotifier extends StateNotifier<AsyncValue<NewsEntry?>> {
+  NewsCreateNotifier(this._controller, this._client, this._ref)
+    : super(const AsyncValue.data(null));
+
+  final NewsController _controller;
+  final StrapiClient _client;
+  final Ref _ref;
+
+  Future<NewsEntry?> submit(NewsCreateFormState form) async {
+    assert(form.category != null, 'submit called before step 1 was valid');
+    state = const AsyncValue.loading();
+    try {
+      int? heroMediaId;
+      if (form.heroImage != null) {
+        heroMediaId = await _client.uploadFile(form.heroImage!.path);
+      }
+
+      final blocks = <NewsContentBlock>[
+        NewsTextBlock(body: form.leadText.trim()),
+      ];
+      for (final pending in form.additionalBlocks) {
+        switch (pending) {
+          case PendingContentTextBlock(body: final body):
+            final trimmed = body.trim();
+            if (trimmed.isEmpty) continue;
+            blocks.add(NewsTextBlock(body: trimmed));
+          case PendingContentMediaBlock(file: final file):
+            final mediaId = await _client.uploadFile(file.path);
+            blocks.add(NewsMediaBlock(mediaId: mediaId));
+        }
+      }
+
+      final input = NewsCreateInput(
+        title: form.title.trim(),
+        subTitle: form.introText.trim().isEmpty ? null : form.introText.trim(),
+        category: form.category!,
+        imageMediaId: heroMediaId,
+        publishAt: form.publishLater ? form.publishAt : null,
+        contentBlocks: blocks,
+      );
+
+      final entry = await _controller.createNews(input);
+      state = AsyncValue.data(entry);
+      // Refresh the news list so the new entry shows up immediately.
+      await _ref.read(newsListProvider.notifier).refresh();
+      return entry;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return null;
+    }
+  }
+
+  void reset() {
+    state = const AsyncValue.data(null);
+  }
+}
+
+final newsCreateProvider =
+    StateNotifierProvider<NewsCreateNotifier, AsyncValue<NewsEntry?>>((ref) {
+      return NewsCreateNotifier(
+        ref.watch(newsControllerProvider),
+        ref.watch(strapiClientProvider),
+        ref,
+      );
+    });

@@ -78,6 +78,57 @@ class StrapiClient {
         );
   }
 
+  /// Multipart upload to Strapi's media library (`/api/upload`).
+  ///
+  /// Returns the Strapi media ID of the uploaded file, which can be used
+  /// to populate `media` relations on other content types.
+  Future<int> uploadFile(
+    String filePath, {
+    bool useUserAuth = true,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/upload');
+    final request = http.MultipartRequest('POST', uri);
+
+    final String token;
+    if (useUserAuth) {
+      final userToken = await _sessionManager.getToken();
+      token = (userToken != null && userToken.isNotEmpty)
+          ? userToken
+          : ApiConfig.appToken;
+    } else {
+      token = ApiConfig.appToken;
+    }
+    request.headers['Authorization'] = 'Bearer $token';
+
+    request.files.add(await http.MultipartFile.fromPath('files', filePath));
+
+    final streamed = await request.send().timeout(
+      const Duration(seconds: 30),
+      onTimeout: () => throw AppException(
+        ErrorHandler.parseError(null, statusCode: 408),
+      ),
+    );
+    final response = await http.Response.fromStream(streamed);
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      debugPrint("Upload error (${response.statusCode}): ${response.body}");
+      throw AppException(ErrorHandler.parseError(
+        'Bild-Upload fehlgeschlagen.',
+        statusCode: response.statusCode,
+      ));
+    }
+
+    final decoded = json.decode(response.body);
+    if (decoded is! List || decoded.isEmpty) {
+      throw AppException('Bild-Upload lieferte unerwartete Antwort.');
+    }
+    final id = (decoded.first as Map<String, dynamic>)['id'];
+    if (id is! int) {
+      throw AppException('Bild-Upload lieferte keine gültige ID.');
+    }
+    return id;
+  }
+
   /// DELETE request to the Strapi API.
   Future<http.Response> delete(
     String path, {

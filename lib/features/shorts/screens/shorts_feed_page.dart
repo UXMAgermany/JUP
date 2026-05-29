@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jup/features/shorts/controllers/shorts_provider.dart';
 import 'package:jup/features/shorts/services/video_player_pool.dart';
 import 'package:jup/features/shorts/widgets/shorts_feed_item.dart';
+import 'package:jup/router/models/navigation_entry.dart';
 import 'package:jup/router/screens/main_page.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/widgets/connection_error_widget.dart';
@@ -32,7 +33,7 @@ class _ShortsFeedPageState extends ConsumerState<ShortsFeedPage> {
   }
 
   void _pauseCurrentVideo() {
-    final shorts = ref.read(shortsListProvider).valueOrNull;
+    final shorts = ref.read(shortsListProvider).value;
     if (shorts != null && _currentIndex < shorts.length) {
       final videoId = shorts[_currentIndex].documentId;
       _playerPool.getController(videoId)?.pause();
@@ -40,7 +41,7 @@ class _ShortsFeedPageState extends ConsumerState<ShortsFeedPage> {
   }
 
   void _resumeCurrentVideo() {
-    final shorts = ref.read(shortsListProvider).valueOrNull;
+    final shorts = ref.read(shortsListProvider).value;
     if (shorts != null && _currentIndex < shorts.length) {
       final videoId = shorts[_currentIndex].documentId;
       final controller = _playerPool.getController(videoId);
@@ -61,12 +62,13 @@ class _ShortsFeedPageState extends ConsumerState<ShortsFeedPage> {
   Widget build(BuildContext context) {
     final shortsAsyncValue = ref.watch(shortsListProvider);
 
+    final newsTabIndex = tabIndexOf(NavigationElement.news);
     // Listen for tab changes - pause video when switching away from News tab
     ref.listen<int>(currentTabIndexProvider, (previous, next) {
-      if (next != 0) {
+      if (next != newsTabIndex) {
         // User switched away from News tab - pause video immediately
         _pauseCurrentVideo();
-      } else if (previous != null && previous != 0) {
+      } else if (previous != null && previous != newsTabIndex) {
         // User switched back to News tab - resume video
         _resumeCurrentVideo();
       }

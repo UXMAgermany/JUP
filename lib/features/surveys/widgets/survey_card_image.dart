@@ -14,7 +14,6 @@ class SurveyCardImage extends StatefulWidget {
 
 class _SurveyCardImageState extends State<SurveyCardImage> {
   bool _imageLoadFailed = false;
-  static const _imageHeight = 120.0;
 
   @override
   Widget build(BuildContext context) {
@@ -24,74 +23,80 @@ class _SurveyCardImageState extends State<SurveyCardImage> {
 
     return Stack(
       children: [
-        Container(
-          height: _imageHeight,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerLowest,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(12),
-              topRight: Radius.circular(12),
-            ),
-            border: Border(
-              bottom: BorderSide(
-                color: Theme.of(context).colorScheme.outlineVariant,
-                width: 1,
+        AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerLowest,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  width: 1,
+                ),
               ),
             ),
-          ),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(12),
-              topRight: Radius.circular(12),
-            ),
-            child: widget.surveyEntry.imageUrl != null && !_imageLoadFailed
-                ? CachedNetworkImage(
-                    imageUrl: widget.surveyEntry.imageUrl!,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) {
-                      return Container(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerLowest,
-                        child: const Center(child: CircularProgressIndicator()),
-                      );
-                    },
-                    errorWidget: (context, url, error) {
-                      debugPrint('Image error for $url: $error');
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted && !_imageLoadFailed) {
-                          setState(() => _imageLoadFailed = true);
-                        }
-                      });
-                      return const SizedBox.shrink();
-                    },
-                    maxHeightDiskCache: 360,
-                    maxWidthDiskCache: 720,
-                    memCacheHeight: 360,
-                    memCacheWidth: 720,
-                    fadeInDuration: const Duration(milliseconds: 200),
-                    fadeOutDuration: const Duration(milliseconds: 200),
-                  )
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      return ClipRect(
-                        child: SizedBox(
-                          width: constraints.maxWidth,
-                          height: _imageHeight,
-                          child: Transform.scale(
-                            scale: 1.2,
-                            child: SvgPicture.asset(
-                              placeholderBanner,
-                              fit: BoxFit.cover,
-                              width: constraints.maxWidth,
-                              height: _imageHeight,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+              child: widget.surveyEntry.imageUrl != null && !_imageLoadFailed
+                  ? CachedNetworkImage(
+                      imageUrl: widget.surveyEntry.imageUrl!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      placeholder: (context, url) {
+                        return Container(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerLowest,
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      },
+                      errorWidget: (context, url, error) {
+                        debugPrint('Image error for $url: $error');
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted && !_imageLoadFailed) {
+                            setState(() => _imageLoadFailed = true);
+                          }
+                        });
+                        return const SizedBox.shrink();
+                      },
+                      // Cache sizes for Retina (3x) at 16:9 in card width
+                      maxHeightDiskCache: 675,
+                      maxWidthDiskCache: 1200,
+                      memCacheHeight: 675,
+                      memCacheWidth: 1200,
+                      fadeInDuration: const Duration(milliseconds: 200),
+                      fadeOutDuration: const Duration(milliseconds: 200),
+                    )
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        return ClipRect(
+                          child: SizedBox(
+                            width: constraints.maxWidth,
+                            height: constraints.maxHeight,
+                            child: Transform.scale(
+                              scale: 1.2,
+                              child: SvgPicture.asset(
+                                placeholderBanner,
+                                fit: BoxFit.cover,
+                                width: constraints.maxWidth,
+                                height: constraints.maxHeight,
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
+                        );
+                      },
+                    ),
+            ),
           ),
         ),
         if (widget.surveyEntry.type == SurveyType.election)

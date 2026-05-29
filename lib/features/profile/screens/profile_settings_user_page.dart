@@ -12,6 +12,7 @@ import 'package:jup/features/profile/widgets/password_edit_sheet.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/services/error_handler.dart';
 import 'package:jup/shared/utils/avatar_helper.dart';
+import 'package:jup/shared/widgets/jup_bottom_sheet.dart';
 import 'package:jup/shared/widgets/sub_page_app_bar.dart';
 import 'package:jup/shared/widgets/text.dart';
 
@@ -46,17 +47,15 @@ class _ProfileSettingsUserPageState
     final User? user = authState.user;
 
     tapNickname() {
-      showModalBottomSheet<void>(
+      showJupBottomSheet<void>(
         context: context,
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
         builder: (_) => const NicknameEditSheet(),
       );
     }
 
     tapPassword() {
-      showModalBottomSheet<void>(
+      showJupBottomSheet<void>(
         context: context,
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
         builder: (_) => const PasswordEditSheet(),
       );
     }
@@ -115,11 +114,12 @@ class _ProfileSettingsUserPageState
                     child: Builder(
                       builder: (context) {
                         final cmsAvatars =
-                            ref.watch(avatarsProvider).valueOrNull ?? [];
+                            ref.watch(avatarsProvider).value ?? [];
 
                         return ListView.separated(
                           scrollDirection: Axis.horizontal,
-                          itemCount: AvatarHelper.availableAvatarIds.length +
+                          itemCount:
+                              AvatarHelper.availableAvatarIds.length +
                               cmsAvatars.length,
                           separatorBuilder: (context, index) =>
                               const SizedBox(width: 12),
@@ -160,10 +160,12 @@ class _ProfileSettingsUserPageState
                               );
                             } else {
                               // CMS avatars come after local avatars
-                              final cmsIndex = index -
+                              final cmsIndex =
+                                  index -
                                   AvatarHelper.availableAvatarIds.length;
                               final file = cmsAvatars[cmsIndex];
-                              final isSelected = user?.avatarPath != null &&
+                              final isSelected =
+                                  user?.avatarPath != null &&
                                   user!.avatarPath!.contains(file.path);
 
                               return GestureDetector(
@@ -189,10 +191,7 @@ class _ProfileSettingsUserPageState
                                       height: 48,
                                       fit: BoxFit.cover,
                                       placeholder: (context, url) =>
-                                          const SizedBox(
-                                        width: 48,
-                                        height: 48,
-                                      ),
+                                          const SizedBox(width: 48, height: 48),
                                       errorWidget: (context, url, error) =>
                                           const SizedBox.shrink(),
                                     ),
@@ -207,8 +206,9 @@ class _ProfileSettingsUserPageState
                   ),
 
                   if (_error != null)
-                    ErrorText(text: _error.toString())
-                        .withPadding(16, 16, 16, 0),
+                    ErrorText(
+                      text: _error.toString(),
+                    ).withPadding(16, 16, 16, 0),
                 ],
               ),
             ).withPaddingY(16),

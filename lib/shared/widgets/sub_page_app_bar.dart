@@ -1,8 +1,8 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/widgets/text.dart';
-import 'package:auto_route/auto_route.dart';
 
 class SubPageAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String titleText;
@@ -15,7 +15,7 @@ class SubPageAppBar extends StatelessWidget implements PreferredSizeWidget {
   const SubPageAppBar({
     super.key,
     this.titleText = '',
-    this.leadingText = 'Zurück',
+    this.leadingText = '',
     this.toolbarHeight = 80,
     this.centerTitle = true,
     this.actions,
@@ -37,33 +37,41 @@ class SubPageAppBar extends StatelessWidget implements PreferredSizeWidget {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainerLowest,
           ),
-          child: Row(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              InkWell(
-                onTap: () => context.router.pop(),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.arrow_back_ios_new,
-                      color: Theme.of(context).colorScheme.primary,
-                      size: 16,
+                    InkWell(
+                      onTap: () => context.router.pop(),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.arrow_back_ios_new,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          LabelLarge(
+                            text: leadingText,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ],
+                      ).withPaddingX(16),
                     ),
-                    const SizedBox(width: 4),
-                    LabelLarge(
-                      text: leadingText,
-                      color: Theme.of(context).colorScheme.primary,
+                    Expanded(
+                      child: Center(
+                        child: HeadlineSmallEmphasized(text: titleText),
+                      ),
                     ),
+                    SizedBox(width: 48), // Placeholder for alignment
+                    ...?actions,
                   ],
-                ).withPaddingX(16),
-              ),
-              Expanded(
-                child: Center(
-                  child: HeadlineSmallEmphasized(text: titleText),
                 ),
               ),
-              SizedBox(width: 48), // Placeholder for alignment
-              if (actions != null) ...actions!,
             ],
           ),
         ),

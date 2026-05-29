@@ -10,6 +10,14 @@ import 'package:jup/shared/services/api_client.dart';
 import 'package:jup/shared/services/error_handler.dart';
 import 'package:jup/shared/utils/env_config.dart';
 
+const _surveyCreatePopulate = {
+  'populate[0]': 'image',
+  'populate[1]': 'options',
+  'populate[2]': 'yesVoters',
+  'populate[3]': 'noVoters',
+  'status': 'published',
+};
+
 class SurveysController {
   final StrapiClient _client;
 
@@ -50,12 +58,12 @@ class SurveysController {
 
       if (activeOnly) {
         queryParameters['filters[expiresAt][\$gt]'] =
-            DateTime.now().toIso8601String();
+            DateTime.now().toUtc().toIso8601String();
       }
 
       queryParameters['filters[\$or][0][publishAt][\$null]'] = 'true';
       queryParameters['filters[\$or][1][publishAt][\$lte]'] =
-          DateTime.now().toIso8601String();
+          DateTime.now().toUtc().toIso8601String();
 
       // Use user token if available (needed for election enrichment)
       final response = await _client.get(
@@ -80,6 +88,11 @@ class SurveysController {
           continue;
         }
       }
+
+      // Sort by effective visibility time (publishAt ?? createdAt) so scheduled
+      // surveys sit at the slot when they became visible, not at their
+      // publishedAt time. Server-sort remains the tiebreaker.
+      surveys.sort((a, b) => b.effectiveDate.compareTo(a.effectiveDate));
 
       return surveys;
     } catch (e) {
@@ -107,6 +120,42 @@ class SurveysController {
     } catch (e) {
       throw AppException(
         "Hoppla, hier stimmt was nicht mit der Verbindung. Check deine Internetverbindung.",
+      );
+    }
+  }
+
+  /// Erstellt eine neue Umfrage via Strapi Default-Endpoint. Wird vom
+  /// Admin-Create-Wizard verwendet.
+  Future<SurveyEntry> createSurvey(SurveyCreateInput input) async {
+    try {
+      final response = await _client.post(
+        '/api/surveys',
+        body: {'data': input.toCreateBody()},
+        queryParams: _surveyCreatePopulate,
+        useUserAuth: true,
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        debugPrint(
+          "Create survey error (${response.statusCode}): ${response.body}",
+        );
+        throw AppException(
+          ErrorHandler.parseError(
+            'Umfrage konnte nicht erstellt werden.',
+            statusCode: response.statusCode,
+          ),
+        );
+      }
+
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = decoded['data'] as Map<String, dynamic>;
+      return SurveyEntry.fromJson(data, _client.baseUrl);
+    } on AppException {
+      rethrow;
+    } catch (e) {
+      debugPrint("Failed to create survey. Error: ${e.toString()}");
+      throw AppException(
+        ErrorHandler.parseError('Umfrage konnte nicht erstellt werden.'),
       );
     }
   }

@@ -1,15 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:jup/shared/utils/env_config.dart';
+import 'package:jup/shared/widgets/jup_bottom_sheet.dart';
 import 'package:jup/shared/widgets/text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-enum ReportReason {
-  childSafety,
-  inappropriateContent,
-  harassment,
-  spam,
-  other,
-}
+enum ReportReason { childSafety, inappropriateContent, harassment, spam, other }
 
 extension ReportReasonExtension on ReportReason {
   String get label {
@@ -43,13 +38,7 @@ extension ReportReasonExtension on ReportReason {
   }
 }
 
-enum ReportContentType {
-  comment,
-  short,
-  event,
-  survey,
-  general,
-}
+enum ReportContentType { comment, short, event, survey, general }
 
 extension ReportContentTypeExtension on ReportContentType {
   String get label {
@@ -86,10 +75,9 @@ class ReportBottomSheet extends StatefulWidget {
     String? contentId,
     String? contentPreview,
   }) {
-    return showModalBottomSheet(
+    return showJupBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
       builder: (context) => ReportBottomSheet(
         contentType: contentType,
         contentId: contentId,
@@ -123,8 +111,9 @@ class _ReportBottomSheetState extends State<ReportBottomSheet> {
     final subject = Uri.encodeComponent(_selectedReason!.emailSubject);
     final body = Uri.encodeComponent(_buildEmailBody());
 
-    final Uri emailUri =
-        Uri.parse('mailto:$_supportEmail?subject=$subject&body=$body');
+    final Uri emailUri = Uri.parse(
+      'mailto:$_supportEmail?subject=$subject&body=$body',
+    );
 
     try {
       if (await canLaunchUrl(emailUri)) {
@@ -132,9 +121,7 @@ class _ReportBottomSheetState extends State<ReportBottomSheet> {
         if (mounted) {
           Navigator.of(context).pop();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Vielen Dank für deine Meldung.'),
-            ),
+            const SnackBar(content: Text('Vielen Dank für deine Meldung.')),
           );
         }
       } else {
@@ -186,116 +173,103 @@ class _ReportBottomSheetState extends State<ReportBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Handle bar
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.outline,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle bar
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.outline,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(height: 16),
-
-                // Title
-                TitleLarge(text: 'Inhalt melden'),
-                const SizedBox(height: 8),
-                BodyMedium(
-                  text: 'Wähle einen Grund für deine Meldung:',
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(height: 16),
-
-                // Report reasons
-                ...ReportReason.values
-                    .map((reason) => _buildReasonTile(reason)),
-
-                const SizedBox(height: 16),
-
-                // Additional details
-                TextField(
-                  controller: _detailsController,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: 'Zusätzliche Details (optional)',
-                    hintText: 'Beschreibe das Problem...',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Child safety notice
-                if (_selectedReason == ReportReason.childSafety)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.errorContainer,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.warning_amber_rounded,
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: BodySmall(
-                            text:
-                                'Kinderschutz-Meldungen werden priorisiert behandelt. '
-                                'Bei akuter Gefahr wende dich bitte direkt an die Polizei (110).',
-                            color:
-                                Theme.of(context).colorScheme.onErrorContainer,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                const SizedBox(height: 16),
-
-                // Submit button
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _selectedReason == null || _isSubmitting
-                        ? null
-                        : _submitReport,
-                    child: _isSubmitting
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Meldung absenden'),
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-              ],
+              ),
             ),
-          ),
+            const SizedBox(height: 16),
+
+            // Title
+            TitleLarge(text: 'Inhalt melden'),
+            const SizedBox(height: 8),
+            BodyMedium(
+              text: 'Wähle einen Grund für deine Meldung:',
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+
+            // Report reasons
+            ...ReportReason.values.map((reason) => _buildReasonTile(reason)),
+
+            const SizedBox(height: 16),
+
+            // Additional details
+            TextField(
+              controller: _detailsController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'Zusätzliche Details (optional)',
+                hintText: 'Beschreibe das Problem...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Child safety notice
+            if (_selectedReason == ReportReason.childSafety)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: BodySmall(
+                        text:
+                            'Kinderschutz-Meldungen werden priorisiert behandelt. '
+                            'Bei akuter Gefahr wende dich bitte direkt an die Polizei (110).',
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            const SizedBox(height: 16),
+
+            // Submit button
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _selectedReason == null || _isSubmitting
+                    ? null
+                    : _submitReport,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Meldung absenden'),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );
@@ -320,10 +294,9 @@ class _ReportBottomSheetState extends State<ReportBottomSheet> {
             ),
             borderRadius: BorderRadius.circular(8),
             color: isSelected
-                ? Theme.of(context)
-                    .colorScheme
-                    .primaryContainer
-                    .withValues(alpha: 0.3)
+                ? Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer.withValues(alpha: 0.3)
                 : null,
           ),
           child: Row(
@@ -339,8 +312,9 @@ class _ReportBottomSheetState extends State<ReportBottomSheet> {
               Expanded(
                 child: BodyMedium(
                   text: reason.label,
-                  color:
-                      isSelected ? Theme.of(context).colorScheme.primary : null,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
                 ),
               ),
               if (isSelected)

@@ -7,6 +7,9 @@ class ShortsEntry {
   final int viewCount;
   final DateTime createdAt;
   final DateTime? publishedAt;
+  /// Scheduled visibility time (custom CMS field). Null for immediate publish.
+  /// Used as primary sort key; falls back to createdAt when null.
+  final DateTime? publishAt;
 
   ShortsEntry({
     required this.documentId,
@@ -15,9 +18,13 @@ class ShortsEntry {
     required this.viewCount,
     required this.createdAt,
     this.publishedAt,
+    this.publishAt,
   });
 
   String? get videoUrl => video?.url;
+
+  /// Effective visibility time used for sorting.
+  DateTime get effectiveDate => publishAt ?? createdAt;
 
   factory ShortsEntry.fromJson(Map<String, dynamic> json, String baseUrl) {
     return ShortsEntry(
@@ -28,6 +35,9 @@ class ShortsEntry {
       createdAt: DateTime.parse(json['createdAt'] as String),
       publishedAt: json['publishedAt'] != null
           ? DateTime.parse(json['publishedAt'] as String)
+          : null,
+      publishAt: json['publishAt'] != null
+          ? DateTime.parse(json['publishAt'] as String)
           : null,
     );
   }
@@ -40,6 +50,7 @@ class ShortsEntry {
       'viewCount': viewCount,
       'createdAt': createdAt.toIso8601String(),
       'publishedAt': publishedAt?.toIso8601String(),
+      'publishAt': publishAt?.toIso8601String(),
     };
   }
 

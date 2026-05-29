@@ -283,7 +283,6 @@ The app uses Material Design 3 with custom typography:
 **Custom Widgets:**
 
 - `HeadlineSmallEmphasized`, `BodyLarge`, `LabelLarge` - Consistent text styles
-- `DefaultAppBar` - Standardized app bar
 - `CommentSection` - Unified commenting interface
 
 ## 🐛 Troubleshooting

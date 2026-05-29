@@ -10,7 +10,7 @@ import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/services/deep_link_service.dart';
 import 'package:jup/shared/utils/date_format_helper.dart';
 import 'package:jup/shared/widgets/detail_page_sliver_app_bar.dart';
-import 'package:jup/shared/widgets/expandable_text_section.dart';
+import 'package:jup/features/news/widgets/news_content_blocks.dart';
 import 'package:jup/shared/widgets/login_required_dialog.dart';
 import 'package:jup/shared/widgets/text.dart';
 import 'package:share_plus/share_plus.dart';
@@ -82,12 +82,13 @@ class _NewsDetailPageState extends ConsumerState<NewsDetailPage> {
               isDarkMode,
             ),
             isDarkMode: isDarkMode,
+            heroTag: 'detail-hero-news-${widget.newsEntry.documentId}',
             onBackPressed: () => context.router.maybePop(),
             onSharePressed: () async {
               final deepLink = _deepLinkService.generateNewsLink(
                 widget.newsEntry.documentId,
               );
-              await Share.share(deepLink);
+              await SharePlus.instance.share(ShareParams(text: deepLink));
             },
           ),
 
@@ -108,7 +109,7 @@ class _NewsDetailPageState extends ConsumerState<NewsDetailPage> {
                         children: [
                           Chip(
                             label: LabelLarge(
-                              text: widget.newsEntry.getCategoryName(),
+                              text: widget.newsEntry.category.displayLabel,
                               color: Theme.of(context).colorScheme.primary,
                             ),
                             backgroundColor: Theme.of(
@@ -165,7 +166,12 @@ class _NewsDetailPageState extends ConsumerState<NewsDetailPage> {
                   ),
                 ),
                 SizedBox(height: 4),
-                ExpandableTextSection(text: widget.newsEntry.text),
+                NewsContentBlocks(
+                  blocks: widget.newsEntry.contentBlocks,
+                  fallbackText: widget.newsEntry.text,
+                  heroTagPrefix:
+                      'detail-content-news-${widget.newsEntry.documentId}',
+                ),
               ],
             ),
           ),

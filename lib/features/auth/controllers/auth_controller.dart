@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:jup/shared/utils/date_format_helper.dart';
 import 'package:jup/features/auth/models/auth_state.dart';
 import 'package:jup/features/auth/models/user_model.dart';
@@ -73,10 +74,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
           errorMessage = _extractErrorMessage(responseBody);
         }
       } catch (_) {}
-      throw AppException(ErrorHandler.parseError(
-        errorMessage ?? 'Fehlercode ${response.statusCode}',
-        statusCode: response.statusCode,
-      ));
+      throw AppException(
+        ErrorHandler.parseError(
+          errorMessage ?? 'Fehlercode ${response.statusCode}',
+          statusCode: response.statusCode,
+        ),
+      );
     }
   }
 
@@ -108,6 +111,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
           try {
             final notificationService = _ref.read(notificationServiceProvider);
+            await notificationService.requestPermissionsAndSetup();
             await notificationService.syncFcmTokenToBackend();
             await notificationService.subscribeToEnabledTopics();
           } catch (_) {}
@@ -119,10 +123,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
         }
       } else {
         state = state.copyWith(isLoading: false);
-        throw AppException(ErrorHandler.parseError(
-          _extractErrorMessage(responseBody) ?? 'Request failed',
-          statusCode: response.statusCode,
-        ));
+        throw AppException(
+          ErrorHandler.parseError(
+            _extractErrorMessage(responseBody) ?? 'Request failed',
+            statusCode: response.statusCode,
+          ),
+        );
       }
     } catch (e) {
       state = state.copyWith(isLoading: false);
@@ -134,6 +140,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> getCurrentUser() async {
     final token = await _sessionManager.getToken();
     if (token == null) {
+      // Migration safeguard: an existing install may still hold Firebase topic
+      // subscriptions from before topics were gated on login. Drop them so a
+      // logged-out user never receives broadcast notifications.
+      try {
+        final notificationService = _ref.read(notificationServiceProvider);
+        await notificationService.unsubscribeFromAllTopics();
+      } catch (_) {}
       state = state.copyWith(isInitialized: true);
       return;
     }
@@ -152,9 +165,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
         MatomoService().updateTrackingConsent(user);
         try {
           final notificationService = _ref.read(notificationServiceProvider);
+          await notificationService.requestPermissionsAndSetup();
           await notificationService.syncFcmTokenToBackend();
+          await notificationService.subscribeToEnabledTopics();
         } catch (_) {}
       } else {
+        try {
+          final notificationService = _ref.read(notificationServiceProvider);
+          await notificationService.unsubscribeFromAllTopics();
+        } catch (_) {}
         await _sessionManager.clearToken();
         state = state.copyWith(isInitialized: true);
       }
@@ -176,10 +195,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     if (response.statusCode != 200) {
       final responseBody = jsonDecode(response.body);
-      throw AppException(ErrorHandler.parseError(
-        _extractErrorMessage(responseBody) ?? 'Request failed',
-        statusCode: response.statusCode,
-      ));
+      throw AppException(
+        ErrorHandler.parseError(
+          _extractErrorMessage(responseBody) ?? 'Request failed',
+          statusCode: response.statusCode,
+        ),
+      );
     }
   }
 
@@ -201,10 +222,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
       return user;
     } else {
       final responseBody = jsonDecode(response.body);
-      throw AppException(ErrorHandler.parseError(
-        _extractErrorMessage(responseBody) ?? 'Request failed',
-        statusCode: response.statusCode,
-      ));
+      throw AppException(
+        ErrorHandler.parseError(
+          _extractErrorMessage(responseBody) ?? 'Request failed',
+          statusCode: response.statusCode,
+        ),
+      );
     }
   }
 
@@ -225,10 +248,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } else {
       state = state.copyWith(isLoading: false);
       final responseBody = jsonDecode(response.body);
-      throw AppException(ErrorHandler.parseError(
-        _extractErrorMessage(responseBody) ?? 'Request failed',
-        statusCode: response.statusCode,
-      ));
+      throw AppException(
+        ErrorHandler.parseError(
+          _extractErrorMessage(responseBody) ?? 'Request failed',
+          statusCode: response.statusCode,
+        ),
+      );
     }
   }
 
@@ -253,10 +278,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     if (response.statusCode != 200) {
       final responseBody = jsonDecode(response.body);
-      throw AppException(ErrorHandler.parseError(
-        _extractErrorMessage(responseBody) ?? 'Request failed',
-        statusCode: response.statusCode,
-      ));
+      throw AppException(
+        ErrorHandler.parseError(
+          _extractErrorMessage(responseBody) ?? 'Request failed',
+          statusCode: response.statusCode,
+        ),
+      );
     }
   }
 
@@ -272,10 +299,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     if (response.statusCode != 200) {
       final responseBody = jsonDecode(response.body);
-      throw AppException(ErrorHandler.parseError(
-        _extractErrorMessage(responseBody) ?? 'Request failed',
-        statusCode: response.statusCode,
-      ));
+      throw AppException(
+        ErrorHandler.parseError(
+          _extractErrorMessage(responseBody) ?? 'Request failed',
+          statusCode: response.statusCode,
+        ),
+      );
     }
   }
 
@@ -300,6 +329,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final notificationService = _ref.read(notificationServiceProvider);
       await notificationService.unsubscribeFromAllTopics();
+      // Backend clear must run while the auth header is still valid.
+      await notificationService.clearFcmTokenInBackend();
     } catch (_) {}
 
     await _sessionManager.clearToken();

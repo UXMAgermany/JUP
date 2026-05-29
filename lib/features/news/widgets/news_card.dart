@@ -90,7 +90,10 @@ class NewsCard extends StatelessWidget {
             if (showMedia)
               ClipRRect(
                 borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                child: _buildImage(context, isDarkMode),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: _buildImage(context, isDarkMode),
+                ),
               ),
             // Content section
             Padding(
@@ -165,62 +168,45 @@ class NewsCard extends StatelessWidget {
   }
 
   Widget _buildImage(BuildContext context, bool isDarkMode) {
-    const imageHeight = 150.0;
-
     if (imageUrl != null) {
       return CachedNetworkImage(
         imageUrl: imageUrl!,
         width: double.infinity,
-        height: imageHeight,
+        height: double.infinity,
         fit: BoxFit.cover,
         placeholder: (context, url) => Container(
-          height: imageHeight,
           color: Theme.of(context).colorScheme.surfaceContainerHigh,
           child: const Center(child: CircularProgressIndicator()),
         ),
-        errorWidget: (context, url, error) => LayoutBuilder(
-          builder: (context, constraints) {
-            return ClipRect(
-              child: SizedBox(
-                width: constraints.maxWidth,
-                height: imageHeight,
-                child: Transform.scale(
-                  scale: 1.2,
-                  child: SvgPicture.asset(
-                    _getPlaceholderBanner(isDarkMode),
-                    fit: BoxFit.cover,
-                    width: constraints.maxWidth,
-                    height: imageHeight,
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-        maxHeightDiskCache: 450,
-        maxWidthDiskCache: 900,
-        memCacheHeight: 450,
-        memCacheWidth: 900,
+        errorWidget: (context, url, error) =>
+            _buildPlaceholderBanner(isDarkMode),
+        // Cache sizes for Retina (3x) at 16:9 in card width
+        maxHeightDiskCache: 675,
+        maxWidthDiskCache: 1200,
+        memCacheHeight: 675,
+        memCacheWidth: 1200,
         fadeInDuration: const Duration(milliseconds: 200),
         fadeOutDuration: const Duration(milliseconds: 200),
       );
     }
 
-    // // Show placeholder if no image URL
+    return _buildPlaceholderBanner(isDarkMode);
+  }
 
+  Widget _buildPlaceholderBanner(bool isDarkMode) {
     return LayoutBuilder(
       builder: (context, constraints) {
         return ClipRect(
           child: SizedBox(
             width: constraints.maxWidth,
-            height: imageHeight,
+            height: constraints.maxHeight,
             child: Transform.scale(
-              scale: 1.2, // Slight scale to ensure no gaps
+              scale: 1.2,
               child: SvgPicture.asset(
                 _getPlaceholderBanner(isDarkMode),
                 fit: BoxFit.cover,
                 width: constraints.maxWidth,
-                height: imageHeight,
+                height: constraints.maxHeight,
               ),
             ),
           ),

@@ -4,6 +4,7 @@ import 'package:jup/features/surveys/controllers/custom_option_provider.dart';
 import 'package:jup/features/surveys/controllers/surveys_provider.dart';
 import 'package:jup/features/surveys/models/custom_option_model.dart';
 import 'package:jup/shared/models/app_exception.dart';
+import 'package:jup/shared/widgets/jup_bottom_sheet.dart';
 import 'package:jup/shared/widgets/text.dart';
 
 class CustomOptionSheet extends ConsumerStatefulWidget {
@@ -21,14 +22,10 @@ class CustomOptionSheet extends ConsumerStatefulWidget {
     String surveyDocumentId, {
     bool isJUPAdmin = false,
   }) {
-    return showModalBottomSheet(
+    return showJupBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
       builder: (context) => CustomOptionSheet(
         surveyDocumentId: surveyDocumentId,
         isJUPAdmin: isJUPAdmin,
@@ -74,8 +71,10 @@ class _CustomOptionSheetState extends ConsumerState<CustomOptionSheet> {
 
     try {
       final controller = ref.read(surveysControllerProvider);
-      final customOption =
-          await controller.submitCustomOption(widget.surveyDocumentId, text);
+      final customOption = await controller.submitCustomOption(
+        widget.surveyDocumentId,
+        text,
+      );
       _textController.clear();
       ref.invalidate(myCustomOptionsProvider(widget.surveyDocumentId));
 
@@ -85,8 +84,11 @@ class _CustomOptionSheetState extends ConsumerState<CustomOptionSheet> {
         return;
       }
     } catch (e) {
-      setState(() => _error =
-          e is AppException ? e.message : 'Ein Fehler ist aufgetreten.');
+      setState(
+        () => _error = e is AppException
+            ? e.message
+            : 'Ein Fehler ist aufgetreten.',
+      );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -94,15 +96,12 @@ class _CustomOptionSheetState extends ConsumerState<CustomOptionSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final myOptionsAsync =
-        ref.watch(myCustomOptionsProvider(widget.surveyDocumentId));
+    final myOptionsAsync = ref.watch(
+      myCustomOptionsProvider(widget.surveyDocumentId),
+    );
 
     return SingleChildScrollView(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,10 +153,12 @@ class _CustomOptionSheetState extends ConsumerState<CustomOptionSheet> {
   }
 
   Widget _buildContent(BuildContext context, List<CustomOption> options) {
-    final rejected =
-        options.where((o) => o.status == CustomOptionStatus.rejected).toList();
-    final pending =
-        options.where((o) => o.status == CustomOptionStatus.pending).toList();
+    final rejected = options
+        .where((o) => o.status == CustomOptionStatus.rejected)
+        .toList();
+    final pending = options
+        .where((o) => o.status == CustomOptionStatus.pending)
+        .toList();
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,9 +171,7 @@ class _CustomOptionSheetState extends ConsumerState<CustomOptionSheet> {
 
         // Rejected options
         if (rejected.isNotEmpty) ...[
-          LabelLarge(
-            text: 'Abgelehnt',
-          ),
+          LabelLarge(text: 'Abgelehnt'),
           const SizedBox(height: 4),
           ...rejected.map((option) => _buildOptionTile(context, option)),
           Padding(
@@ -219,10 +218,7 @@ class _CustomOptionSheetState extends ConsumerState<CustomOptionSheet> {
           onChanged: (_) => setState(() => _error = null),
         ),
         if (_error != null) ...[
-          BodySmall(
-            text: _error!,
-            color: Theme.of(context).colorScheme.error,
-          ),
+          BodySmall(text: _error!, color: Theme.of(context).colorScheme.error),
           const SizedBox(height: 8),
         ],
         Center(

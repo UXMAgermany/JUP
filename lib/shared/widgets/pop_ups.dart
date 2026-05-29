@@ -5,7 +5,7 @@ import 'package:jup/main.dart';
 Future<bool?> showTextPopUpDialog({
   required String title,
   required String description,
-  required List<Widget> actions,
+  required List<Widget> Function(BuildContext dialogContext) actions,
 }) {
   return showDialog<bool>(
     barrierDismissible: false,
@@ -16,7 +16,7 @@ Future<bool?> showTextPopUpDialog({
         constraints: const BoxConstraints(maxWidth: 400),
         child: BodyMedium(text: description),
       ),
-      actions: actions,
+      actions: actions(context),
     ),
   );
 }
@@ -24,7 +24,7 @@ Future<bool?> showTextPopUpDialog({
 Future<bool?> showPopUpDialog({
   required Widget title,
   required Widget content,
-  required List<Widget> actions,
+  required List<Widget> Function(BuildContext dialogContext) actions,
   barrierDismissible = false,
   Color? backgroundColor,
   Alignment? alignment,
@@ -42,7 +42,7 @@ Future<bool?> showPopUpDialog({
         constraints: const BoxConstraints(maxWidth: 400),
         child: content,
       ),
-      actions: actions,
+      actions: actions(context),
     ),
   );
 }

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:jup/shared/models/comment_model.dart';
 import 'package:jup/features/events/models/event_model.dart';
@@ -21,24 +23,27 @@ class EventsController {
         'pagination[pageSize]': pageSize.toString(),
         'pagination[page]': page.toString(),
         'sort': 'startTime:asc',
-        'populate[0]': 'image',
-        'populate[1]': 'participants',
-        'populate[2]': 'templateEvent',
+        'populate[image]': 'true',
+        'populate[participants]': 'true',
+        'populate[templateEvent]': 'true',
+        'populate[contentBlocks][on][event.text-block][populate]': '*',
+        'populate[contentBlocks][on][event.media-block][populate]': '*',
       };
 
       if (categories != null && categories.isNotEmpty) {
         for (int i = 0; i < categories.length; i++) {
-          queryParameters['filters[category][\$in][$i]'] =
-              categories.elementAt(i).toJson();
+          queryParameters['filters[category][\$in][$i]'] = categories
+              .elementAt(i)
+              .toJson();
         }
       }
 
       queryParameters['filters[\$and][0][\$or][0][expiresAt][\$null]'] = 'true';
       queryParameters['filters[\$and][0][\$or][1][expiresAt][\$gt]'] =
-          DateTime.now().toIso8601String();
+          DateTime.now().toUtc().toIso8601String();
       queryParameters['filters[\$and][1][\$or][0][publishAt][\$null]'] = 'true';
       queryParameters['filters[\$and][1][\$or][1][publishAt][\$lte]'] =
-          DateTime.now().toIso8601String();
+          DateTime.now().toUtc().toIso8601String();
 
       final response = await _client.get(
         '/api/events',
@@ -75,11 +80,12 @@ class EventsController {
       final response = await _client.get(
         '/api/events/$documentId',
         queryParams: {
-          'populate[0]': 'image',
-          'populate[1]': 'participants',
-          'populate[2]': 'comments',
-          'populate[3]': 'comments.author',
-          'populate[4]': 'templateEvent',
+          'populate[image]': 'true',
+          'populate[participants]': 'true',
+          'populate[comments][populate]': 'author',
+          'populate[templateEvent]': 'true',
+          'populate[contentBlocks][on][event.text-block][populate]': '*',
+          'populate[contentBlocks][on][event.media-block][populate]': '*',
         },
       );
 
@@ -94,6 +100,49 @@ class EventsController {
       debugPrint("Failed to parse event. Error: ${e.toString()}");
       throw AppException(
         'Fehler beim Laden des Events. Check deine Internetverbindung.',
+      );
+    }
+  }
+
+  /// Create a new event. Requires admin user JWT (server enforces
+  /// `isJUPAdmin` via lifecycle hook).
+  Future<EventEntry> createEvent(EventCreateInput input) async {
+    try {
+      final response = await _client.post(
+        '/api/events',
+        body: {'data': input.toCreateBody()},
+        queryParams: {
+          'populate[image]': 'true',
+          'populate[participants]': 'true',
+          'populate[templateEvent]': 'true',
+          'populate[contentBlocks][on][event.text-block][populate]': '*',
+          'populate[contentBlocks][on][event.media-block][populate]': '*',
+          'status': 'published',
+        },
+        useUserAuth: true,
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        debugPrint(
+          "Create event error (${response.statusCode}): ${response.body}",
+        );
+        throw AppException(
+          ErrorHandler.parseError(
+            'Event konnte nicht erstellt werden.',
+            statusCode: response.statusCode,
+          ),
+        );
+      }
+
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = decoded['data'] as Map<String, dynamic>;
+      return EventEntry.fromJson(data, _client.baseUrl);
+    } on AppException {
+      rethrow;
+    } catch (e) {
+      debugPrint("Failed to create event. Error: ${e.toString()}");
+      throw AppException(
+        ErrorHandler.parseError('Event konnte nicht erstellt werden.'),
       );
     }
   }
@@ -118,7 +167,8 @@ class EventsController {
 
       _client.assertSuccess(
         response,
-        errorMessage: 'Failed to add participant. Status code: ${response.statusCode}',
+        errorMessage:
+            'Failed to add participant. Status code: ${response.statusCode}',
       );
 
       return await fetchEventById(eventDocumentId);

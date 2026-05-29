@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:jup/features/surveys/controllers/surveys_controller.dart';
 import 'package:jup/features/surveys/models/survey_model.dart';
 import 'package:jup/shared/controllers/paginated_list_notifier.dart';

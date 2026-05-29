@@ -39,6 +39,10 @@
 	<string>202601081404</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>JUP! benötigt Zugriff auf deine Fotos, damit du Bilder zu News-Beiträgen hinzufügen kannst.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>JUP! benötigt Zugriff auf die Kamera, damit du Fotos für News-Beiträge aufnehmen kannst.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSExceptionDomains</key>

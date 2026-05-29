@@ -4,11 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/utils/date_format_helper.dart';
 import 'package:jup/shared/utils/avatar_helper.dart';
-import 'package:jup/shared/widgets/default_app_bar.dart';
 import 'package:jup/shared/widgets/text.dart';
 import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/features/auth/models/user_model.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
+import 'package:jup/router/models/navigation_entry.dart';
+import 'package:jup/router/screens/main_page.dart';
 import 'package:jup/shared/controllers/scroll_controller_provider.dart';
 
 @RoutePage()
@@ -21,17 +22,17 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   final ScrollController _scrollController = ScrollController();
+  late final int _tabIndex = tabIndexOf(NavigationElement.profile);
   bool _isRegistered = false;
 
   @override
   void initState() {
     super.initState();
-    // Register scroll controller for Profile tab (index 3)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ref
             .read(scrollControllerProvider.notifier)
-            .registerController(3, _scrollController);
+            .registerController(_tabIndex, _scrollController);
         _isRegistered = true;
       }
     });
@@ -41,7 +42,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   void dispose() {
     if (_isRegistered) {
       try {
-        ref.read(scrollControllerProvider.notifier).unregisterController(3);
+        ref
+            .read(scrollControllerProvider.notifier)
+            .unregisterController(_tabIndex);
       } catch (_) {
         // Widget already disposed, skip unregistration
       }
@@ -71,25 +74,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     // At this point, user is guaranteed to be non-null
     final currentUser = user;
 
-    return Scaffold(
-      appBar: DefaultAppBar(
-        titleText: 'Profil',
-        actions: [
-          IconButton(
-            icon: Icon(
-              Icons.settings,
-              color: Theme.of(context).colorScheme.onPrimary,
-            ),
-            style: IconButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-            ),
-            onPressed: () {
-              context.router.push(const ProfileSettingsRoute());
-            },
-          ).withPaddingRight(16),
-        ],
-      ),
-      body: SafeArea(
+    return SafeArea(
         child: ListView(
           controller: _scrollController,
           children: [
@@ -155,7 +140,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ),
           ],
         ).withPaddingX(16),
-      ),
-    );
+      );
   }
 }

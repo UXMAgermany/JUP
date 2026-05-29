@@ -284,6 +284,24 @@ class MockNotificationService extends _i1.Mock
           as _i3.Future<void>);
 
   @override
+  _i3.Future<void> requestPermissionsAndSetup() =>
+      (super.noSuchMethod(
+            Invocation.method(#requestPermissionsAndSetup, []),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
+          )
+          as _i3.Future<void>);
+
+  @override
+  _i3.Future<void> clearFcmTokenInBackend() =>
+      (super.noSuchMethod(
+            Invocation.method(#clearFcmTokenInBackend, []),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
+          )
+          as _i3.Future<void>);
+
+  @override
   _i3.Future<void> subscribeToEnabledTopics() =>
       (super.noSuchMethod(
             Invocation.method(#subscribeToEnabledTopics, []),
@@ -326,6 +344,15 @@ class MockNotificationService extends _i1.Mock
             returnValue: _i3.Future<String?>.value(),
           )
           as _i3.Future<String?>);
+
+  @override
+  _i3.Future<void> syncFcmTokenToBackend() =>
+      (super.noSuchMethod(
+            Invocation.method(#syncFcmTokenToBackend, []),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
+          )
+          as _i3.Future<void>);
 
   @override
   _i3.Future<void> deleteToken() =>

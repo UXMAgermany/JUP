@@ -48,7 +48,6 @@ class _EventCardState extends State<EventCard> {
     final brightness = Theme.of(context).brightness;
     final isDarkMode = brightness == Brightness.dark;
     final cardWidth = widget.isFullWidth ? double.infinity : 300.0;
-    final imageHeight = widget.isFullWidth ? 150.0 : 120.0;
 
     return InkWell(
       onTap: widget.onTap,
@@ -63,12 +62,16 @@ class _EventCardState extends State<EventCard> {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize:
-                widget.isFullWidth ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisSize: widget.isFullWidth
+                ? MainAxisSize.max
+                : MainAxisSize.min,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                child: _buildImage(context, cardWidth, imageHeight, isDarkMode),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: _buildImage(context, isDarkMode),
+                ),
               ),
               Padding(
                 padding: EdgeInsets.fromLTRB(16.0, 16, 16.0, 8.0),
@@ -123,7 +126,8 @@ class _EventCardState extends State<EventCard> {
                         SizedBox(width: 4),
                         BodySmall(
                           text: DateFormatHelper.formatDateTime(
-                              widget.event.startTime),
+                            widget.event.startTime,
+                          ),
                         ),
                         if (widget.event.isRepeating()) ...[
                           SizedBox(width: 4),
@@ -178,72 +182,56 @@ class _EventCardState extends State<EventCard> {
     );
   }
 
-  Widget _buildImage(
-    BuildContext context,
-    double width,
-    double height,
-    bool isDarkMode,
-  ) {
-    // Show placeholder if no image URL or if image loading failed
+  Widget _buildImage(BuildContext context, bool isDarkMode) {
     if (widget.event.imageUrl == null || _imageLoadFailed) {
-      return _buildPlaceholderImage(context, width, height, isDarkMode);
+      return _buildPlaceholderImage(context, isDarkMode);
     }
 
     return CachedNetworkImage(
       imageUrl: widget.event.imageUrl!,
-      width: width,
-      height: height,
+      width: double.infinity,
+      height: double.infinity,
       fit: BoxFit.cover,
       placeholder: (context, url) {
         debugPrint('Loading event image: $url');
         return Container(
-          height: height,
           color: Theme.of(context).colorScheme.surfaceContainerLowest,
           child: const Center(child: CircularProgressIndicator()),
         );
       },
       errorWidget: (context, url, error) {
         debugPrint('Event image error for $url: $error');
-        // Hide network image and show placeholder on error
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && !_imageLoadFailed) {
             setState(() => _imageLoadFailed = true);
           }
         });
-        return _buildPlaceholderImage(context, width, height, isDarkMode);
+        return _buildPlaceholderImage(context, isDarkMode);
       },
-      // Cache sizes for Retina displays (3x)
-      maxHeightDiskCache: 450,
-      maxWidthDiskCache: 900,
-      memCacheHeight: 450,
-      memCacheWidth: 900,
+      // Cache sizes for Retina (3x) at 16:9 in card width
+      maxHeightDiskCache: 675,
+      maxWidthDiskCache: 1200,
+      memCacheHeight: 675,
+      memCacheWidth: 1200,
       fadeInDuration: const Duration(milliseconds: 200),
       fadeOutDuration: const Duration(milliseconds: 200),
     );
   }
 
-  Widget _buildPlaceholderImage(
-    BuildContext context,
-    double width,
-    double height,
-    bool isDarkMode,
-  ) {
+  Widget _buildPlaceholderImage(BuildContext context, bool isDarkMode) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final availableWidth =
-            width == double.infinity ? constraints.maxWidth : width;
-
         return ClipRect(
           child: SizedBox(
-            width: availableWidth,
-            height: height,
+            width: constraints.maxWidth,
+            height: constraints.maxHeight,
             child: Transform.scale(
-              scale: 1.2, // Slight scale to ensure no gaps
+              scale: 1.2,
               child: SvgPicture.asset(
                 widget.event.getPlaceholderBanner(isDarkMode),
                 fit: BoxFit.cover,
-                width: availableWidth,
-                height: height,
+                width: constraints.maxWidth,
+                height: constraints.maxHeight,
               ),
             ),
           ),

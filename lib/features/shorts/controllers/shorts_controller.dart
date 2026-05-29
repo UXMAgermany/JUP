@@ -24,7 +24,7 @@ class ShortsController {
           'populate': '*',
           'filters[\$or][0][publishAt][\$null]': 'true',
           'filters[\$or][1][publishAt][\$lte]':
-              DateTime.now().toIso8601String(),
+              DateTime.now().toUtc().toIso8601String(),
         },
       );
 
@@ -48,6 +48,11 @@ class ShortsController {
           continue;
         }
       }
+
+      // Sort by effective visibility time (publishAt ?? createdAt) so scheduled
+      // shorts sit at the slot when they became visible, not at their
+      // publishedAt time. Server-sort remains the tiebreaker.
+      shorts.sort((a, b) => b.effectiveDate.compareTo(a.effectiveDate));
 
       return shorts;
     } catch (e) {

@@ -6,9 +6,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:jup/features/content/controllers/help_provider.dart';
 import 'package:jup/features/content/models/faq_model.dart';
 import 'package:jup/features/content/models/help_model.dart';
+import 'package:jup/router/models/navigation_entry.dart';
+import 'package:jup/router/screens/main_page.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/utils/url_helper.dart';
-import 'package:jup/shared/widgets/default_app_bar.dart';
 import 'package:jup/shared/widgets/text.dart';
 import 'package:jup/shared/controllers/scroll_controller_provider.dart';
 import 'package:jup/shared/widgets/connection_error_widget.dart';
@@ -25,6 +26,7 @@ class HelpPage extends ConsumerStatefulWidget {
 class _HelpPageState extends ConsumerState<HelpPage>
     with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
+  late final int _tabIndex = tabIndexOf(NavigationElement.help);
   bool _isRegistered = false;
   final Map<String, ExpansibleController> _expansionControllers = {};
   final Map<String, bool> _expansionStates = {};
@@ -45,12 +47,11 @@ class _HelpPageState extends ConsumerState<HelpPage>
       return faqs;
     });
 
-    // Register scroll controller for Help tab (index 4)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ref
             .read(scrollControllerProvider.notifier)
-            .registerController(4, _scrollController);
+            .registerController(_tabIndex, _scrollController);
         _isRegistered = true;
       }
     });
@@ -60,7 +61,9 @@ class _HelpPageState extends ConsumerState<HelpPage>
   void dispose() {
     if (_isRegistered) {
       try {
-        ref.read(scrollControllerProvider.notifier).unregisterController(4);
+        ref
+            .read(scrollControllerProvider.notifier)
+            .unregisterController(_tabIndex);
       } catch (_) {
         // Widget already disposed, skip unregistration
       }
@@ -620,23 +623,19 @@ class _HelpPageState extends ConsumerState<HelpPage>
   Widget build(BuildContext context) {
     final helpEntriesAsync = ref.watch(helpEntriesProvider);
 
-    return Scaffold(
-      appBar: DefaultAppBar(
-        titleText: 'Hilfen',
-        bottom: TabBar(
+    return Column(
+      children: [
+        TabBar(
           controller: _tabController,
           tabs: const [
             Tab(text: 'Angebote'),
             Tab(text: 'FAQs'),
           ],
         ),
-      ),
-      body: Column(
-        children: [
-          const SizedBox(height: 16),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
+        const SizedBox(height: 16),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
               children: [
                 // Tab 0: Angebote
                 helpEntriesAsync.when(
@@ -657,13 +656,12 @@ class _HelpPageState extends ConsumerState<HelpPage>
                     ),
                   ),
                 ),
-                // Tab 1: FAQs
-                _buildFaqTab(),
-              ],
-            ),
+              // Tab 1: FAQs
+              _buildFaqTab(),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

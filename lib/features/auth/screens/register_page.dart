@@ -3,16 +3,18 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jup/features/auth/controllers/auth_provider.dart';
+import 'package:jup/features/auth/widgets/checkbox_form_field.dart';
 import 'package:jup/features/files/controllers/file_provider.dart';
 import 'package:jup/features/files/models/file_model.dart';
-import 'package:jup/shared/extensions/padding_extension.dart';
-import 'package:jup/shared/utils/date_format_helper.dart';
-import 'package:jup/shared/utils/avatar_helper.dart';
-import 'package:jup/shared/widgets/default_app_bar.dart';
-import 'package:jup/shared/widgets/text.dart';
-import 'package:jup/features/auth/widgets/checkbox_form_field.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
-import 'package:jup/features/auth/controllers/auth_provider.dart';
+import 'package:jup/router/models/navigation_entry.dart';
+import 'package:jup/router/widgets/main_app_bar.dart';
+import 'package:jup/router/widgets/main_app_drawer.dart';
+import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:jup/shared/utils/avatar_helper.dart';
+import 'package:jup/shared/utils/date_format_helper.dart';
+import 'package:jup/shared/widgets/text.dart';
 
 @RoutePage()
 class RegisterPage extends ConsumerStatefulWidget {
@@ -159,8 +161,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       if (_birthday == null) return false;
 
       final age = now.year - _birthday!.year;
-      final hasHadBirthdayThisYear =
-          now.month > _birthday!.month ||
+      final hasHadBirthdayThisYear = now.month > _birthday!.month ||
           (now.month == _birthday!.month && now.day >= _birthday!.day);
 
       final actualAge = hasHadBirthdayThisYear ? age : age - 1;
@@ -168,10 +169,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     }
 
     return Scaffold(
-      appBar: DefaultAppBar(
-        titleText: "Erstelle deinen Account",
-        centerTitle: false,
+      appBar: const MainAppBar(
+        activeTab: NavigationElement.profile,
+        titleOverride: "Erstelle deinen Account",
       ),
+      drawer: const MainAppDrawer(),
       body: SafeArea(
         child: ListView(
           children: [
@@ -293,8 +295,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       final age = now.year - _birthday!.year;
                       final hasHadBirthdayThisYear =
                           now.month > _birthday!.month ||
-                          (now.month == _birthday!.month &&
-                              now.day >= _birthday!.day);
+                              (now.month == _birthday!.month &&
+                                  now.day >= _birthday!.day);
                       final actualAge = hasHadBirthdayThisYear ? age : age - 1;
 
                       if (actualAge < 12) {
@@ -330,7 +332,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     child: Column(
                       children: [
                         TitleSmall(
-                          text: "Wähle dir einen Avatar aus, wenn du willst.",
+                          text:
+                              "Wähle einen Avatar aus, wenn du willst. Du kannst ihn später wieder ändern.",
                         ),
                         Center(
                           child: ClipOval(
@@ -347,13 +350,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                           height: 48,
                           child: Builder(
                             builder: (context) {
-                              final cmsAvatars = avatarList.valueOrNull ?? [];
+                              final cmsAvatars = avatarList.value ?? [];
 
                               return ListView.separated(
                                 scrollDirection: Axis.horizontal,
                                 itemCount:
                                     AvatarHelper.availableAvatarIds.length +
-                                    cmsAvatars.length,
+                                        cmsAvatars.length,
                                 separatorBuilder: (context, index) =>
                                     const SizedBox(width: 12),
                                 itemBuilder: (context, index) {
@@ -400,8 +403,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                     );
                                   } else {
                                     // CMS avatars come after local avatars
-                                    final cmsIndex =
-                                        index -
+                                    final cmsIndex = index -
                                         AvatarHelper.availableAvatarIds.length;
                                     final file = cmsAvatars[cmsIndex];
                                     final isSelected = _avatar?.id == file.id;
@@ -438,8 +440,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                               width: 48,
                                               height: 48,
                                             ),
-                                            errorWidget: (context, url, error) =>
-                                                const SizedBox.shrink(),
+                                            errorWidget:
+                                                (context, url, error) =>
+                                                    const SizedBox.shrink(),
                                           ),
                                         ),
                                       ),
@@ -463,7 +466,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         ),
                         TextSpan(
                           text: 'Warum?',
-                          style: Theme.of(context).textTheme.titleSmall!
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall!
                               .copyWith(
                                 color: Theme.of(context).colorScheme.primary,
                                 decoration: TextDecoration.underline,
@@ -489,7 +494,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                           ),
                           TextSpan(
                             text: 'Verhaltenskodex',
-                            style: Theme.of(context).textTheme.titleSmall!
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall!
                                 .copyWith(
                                   color: Theme.of(context).colorScheme.primary,
                                   decoration: TextDecoration.underline,
@@ -532,7 +539,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                             ),
                             TextSpan(
                               text: 'Mehr erfahren',
-                              style: Theme.of(context).textTheme.titleSmall!
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall!
                                   .copyWith(
                                     color: Theme.of(
                                       context,

@@ -6,8 +6,9 @@ import 'package:jup/features/surveys/controllers/surveys_provider.dart';
 import 'package:jup/features/surveys/models/survey_model.dart';
 import 'package:jup/features/surveys/widgets/survey_card.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
+import 'package:jup/router/models/navigation_entry.dart';
+import 'package:jup/router/screens/main_page.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
-import 'package:jup/shared/widgets/default_app_bar.dart';
 import 'package:jup/shared/widgets/empty_state.dart';
 import 'package:jup/shared/controllers/notification_provider.dart';
 import 'package:jup/shared/controllers/scroll_controller_provider.dart';
@@ -53,13 +54,16 @@ class _SurveysOverviewPageState extends ConsumerState<SurveysOverviewPage>
     _fertigScrollController.addListener(_onFertigScroll);
     _altScrollController.addListener(_onAltScroll);
 
-    // Register scroll controller for Surveys tab (index 2)
+    // Register scroll controller for Surveys tab.
     // We register the first tab's controller as the default
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ref
             .read(scrollControllerProvider.notifier)
-            .registerController(2, _neuScrollController);
+            .registerController(
+              tabIndexOf(NavigationElement.surveys),
+              _neuScrollController,
+            );
         _isRegistered = true;
       }
     });
@@ -84,7 +88,10 @@ class _SurveysOverviewPageState extends ConsumerState<SurveysOverviewPage>
     try {
       ref
           .read(scrollControllerProvider.notifier)
-          .registerController(2, activeController);
+          .registerController(
+            tabIndexOf(NavigationElement.surveys),
+            activeController,
+          );
     } catch (_) {
       // Widget disposed, skip registration
     }
@@ -94,7 +101,9 @@ class _SurveysOverviewPageState extends ConsumerState<SurveysOverviewPage>
   void dispose() {
     if (_isRegistered) {
       try {
-        ref.read(scrollControllerProvider.notifier).unregisterController(2);
+        ref
+          .read(scrollControllerProvider.notifier)
+          .unregisterController(tabIndexOf(NavigationElement.surveys));
       } catch (_) {
         // Widget already disposed, skip unregistration
       }
@@ -155,10 +164,9 @@ class _SurveysOverviewPageState extends ConsumerState<SurveysOverviewPage>
     final userId = authState.user?.id;
     final isJUPAdmin = authState.user?.isJUPAdmin ?? false;
 
-    return Scaffold(
-      appBar: DefaultAppBar(
-        titleText: 'Umfragen',
-        bottom: TabBar(
+    return Column(
+      children: [
+        TabBar(
           controller: _tabController,
           tabs: const [
             Tab(text: 'Neu'),
@@ -166,8 +174,8 @@ class _SurveysOverviewPageState extends ConsumerState<SurveysOverviewPage>
             Tab(text: 'Alt'),
           ],
         ),
-      ),
-      body: surveysAsyncValue.when(
+        Expanded(
+          child: surveysAsyncValue.when(
         data: (surveys) {
           final notifier = ref.read(surveysListProvider.notifier);
           return TabBarView(
@@ -239,6 +247,8 @@ class _SurveysOverviewPageState extends ConsumerState<SurveysOverviewPage>
           ),
         ).withPadding(16, 16, 16, 16),
       ),
+        ),
+      ],
     );
   }
 

@@ -49,6 +49,10 @@ class AppRouter extends RootStackRouter {
                 ),
                 AutoRoute(page: NewsDetailRoute.page),
                 AutoRoute(page: ShortsFeedRoute.page),
+                AutoRoute(
+                  page: NewsCreateRoute.page,
+                  guards: [_authGuard],
+                ),
               ],
             ),
             AutoRoute(
@@ -61,6 +65,10 @@ class AppRouter extends RootStackRouter {
                 ),
                 AutoRoute(page: EventsLoggedOutRoute.page),
                 AutoRoute(page: EventDetailRoute.page),
+                AutoRoute(
+                  page: EventCreateRoute.page,
+                  guards: [_authGuard],
+                ),
               ],
             ),
             AutoRoute(
@@ -71,6 +79,10 @@ class AppRouter extends RootStackRouter {
                   page: SurveysOverviewRoute.page,
                   initial: true,
                   guards: [_surveysAuthGuard],
+                ),
+                AutoRoute(
+                  page: SurveyCreateRoute.page,
+                  guards: [_authGuard],
                 ),
               ],
             ),
@@ -91,10 +103,7 @@ class AppRouter extends RootStackRouter {
                   initial: true,
                   guards: [_authGuard],
                 ),
-                AutoRoute(
-                  page: ProfileSettingsRoute.page,
-                  guards: [_authGuard],
-                ),
+                AutoRoute(page: ProfileSettingsRoute.page),
                 AutoRoute(
                   page: ProfileSettingsUserRoute.page,
                   guards: [_authGuard],
@@ -111,22 +120,10 @@ class AppRouter extends RootStackRouter {
                   page: ProfileSettingsBackgroundRoute.page,
                   guards: [_authGuard],
                 ),
-                AutoRoute(
-                  page: ProfileSettingsServiceRoute.page,
-                  guards: [_authGuard],
-                ),
-                AutoRoute(
-                  page: ProfileSettingsReportRoute.page,
-                  guards: [_authGuard],
-                ),
-                AutoRoute(
-                  page: ProfileSettingsAddressRoute.page,
-                  guards: [_authGuard],
-                ),
-                AutoRoute(
-                  page: ProfileSettingsAboutRoute.page,
-                  guards: [_authGuard],
-                ),
+                AutoRoute(page: ProfileSettingsServiceRoute.page),
+                AutoRoute(page: ProfileSettingsReportRoute.page),
+                AutoRoute(page: ProfileSettingsAddressRoute.page),
+                AutoRoute(page: ProfileSettingsAboutRoute.page),
                 AutoRoute(
                   page: ProfileSettingsNotificationsRoute.page,
                   guards: [_authGuard],

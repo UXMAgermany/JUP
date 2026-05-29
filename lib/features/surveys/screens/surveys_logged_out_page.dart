@@ -7,12 +7,14 @@ import 'package:jup/features/surveys/controllers/surveys_provider.dart';
 import 'package:jup/features/surveys/models/survey_model.dart';
 import 'package:jup/features/surveys/widgets/survey_card.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
+import 'package:jup/router/models/navigation_entry.dart';
+import 'package:jup/router/screens/main_page.dart';
+import 'package:jup/shared/controllers/scroll_controller_provider.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/widgets/connection_error_widget.dart';
 import 'package:jup/shared/widgets/empty_state.dart';
 import 'package:jup/shared/widgets/login_required_dialog.dart';
 import 'package:jup/shared/widgets/text.dart';
-import 'package:jup/shared/controllers/scroll_controller_provider.dart';
 
 @RoutePage()
 class SurveysLoggedOutPage extends ConsumerStatefulWidget {
@@ -35,7 +37,10 @@ class _SurveysLoggedOutPageState extends ConsumerState<SurveysLoggedOutPage> {
       if (mounted) {
         ref
             .read(scrollControllerProvider.notifier)
-            .registerController(2, _scrollController);
+            .registerController(
+              tabIndexOf(NavigationElement.surveys),
+              _scrollController,
+            );
         _isRegistered = true;
       }
     });
@@ -45,7 +50,9 @@ class _SurveysLoggedOutPageState extends ConsumerState<SurveysLoggedOutPage> {
   void dispose() {
     if (_isRegistered) {
       try {
-        ref.read(scrollControllerProvider.notifier).unregisterController(2);
+        ref
+            .read(scrollControllerProvider.notifier)
+            .unregisterController(tabIndexOf(NavigationElement.surveys));
       } catch (_) {
         // Widget already disposed, skip unregistration
       }
@@ -67,105 +74,88 @@ class _SurveysLoggedOutPageState extends ConsumerState<SurveysLoggedOutPage> {
       });
     }
 
-    return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await ref.read(surveysListProvider.notifier).refresh();
-        },
-        child: surveysAsyncValue.when(
-          data: (surveysList) {
-            // Filter out expired surveys
-            final activeSurveys = surveysList
-                .where(
-                  (survey) =>
-                      survey.getStatus(null) != SurveyStatus.expired &&
-                      survey.type != SurveyType.election,
-                )
-                .toList();
+    return RefreshIndicator(
+      onRefresh: () async {
+        await ref.read(surveysListProvider.notifier).refresh();
+      },
+      child: surveysAsyncValue.when(
+        data: (surveysList) {
+          // Filter out expired surveys
+          final activeSurveys = surveysList
+              .where(
+                (survey) =>
+                    survey.getStatus(null) != SurveyStatus.expired &&
+                    survey.type != SurveyType.election,
+              )
+              .toList();
 
-            return CustomScrollView(
-              controller: _scrollController,
-              slivers: [
-                SliverAppBar(
-                  expandedHeight: 240,
-                  floating: false,
-                  pinned: false,
-                  flexibleSpace: FlexibleSpaceBar(background: WelcomeHeader()),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.all(16),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      // Surveys section
-                      HeadlineSmallEmphasized(
-                        text: 'Umfragen',
-                      ).withPaddingBottom(8),
-                      // Survey cards or empty state
-                      if (activeSurveys.isEmpty)
-                        SizedBox(
-                          child: EmptyState(title: "Ganz schön leer hier!"),
-                        )
-                      else
-                        Column(
-                          children: activeSurveys
-                              .take(3)
-                              .map(
-                                (survey) => RepaintBoundary(
-                                  child: SurveyCard(
-                                    surveyEntry: survey,
-                                    userId: null,
-                                    onLoginRequired: () =>
-                                        LoginRequiredDialog.show(
-                                      context,
-                                      message: 'Melde dich an, um abzustimmen.',
-                                    ),
-                                  ).withPaddingBottom(8),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                      const SizedBox(height: 80), // Space for bottom nav bar
-                    ]),
-                  ),
-                ),
-              ],
-            );
-          },
-          loading: () => CustomScrollView(
+          return CustomScrollView(
+            controller: _scrollController,
             slivers: [
-              SliverAppBar(
-                expandedHeight: 240,
-                floating: false,
-                pinned: false,
-                flexibleSpace: FlexibleSpaceBar(background: WelcomeHeader()),
-              ),
-              const SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 200,
-                  child: Center(child: CircularProgressIndicator()),
+              const SliverToBoxAdapter(child: WelcomeHeader()),
+              SliverPadding(
+                padding: const EdgeInsets.all(16),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    // Surveys section
+                    HeadlineSmallEmphasized(
+                      text: 'Umfragen',
+                    ).withPaddingBottom(8),
+                    // Survey cards or empty state
+                    if (activeSurveys.isEmpty)
+                      SizedBox(
+                        child: EmptyState(title: "Ganz schön leer hier!"),
+                      )
+                    else
+                      Column(
+                        children: activeSurveys
+                            .take(3)
+                            .map(
+                              (survey) => RepaintBoundary(
+                                child: SurveyCard(
+                                  surveyEntry: survey,
+                                  userId: null,
+                                  onLoginRequired: () =>
+                                      LoginRequiredDialog.show(
+                                    context,
+                                    message: 'Melde dich an, um abzustimmen.',
+                                  ),
+                                ).withPaddingBottom(8),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    const SizedBox(height: 24),
+                  ]),
                 ),
               ),
             ],
-          ),
-          error: (error, stack) => CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                expandedHeight: 240,
-                floating: false,
-                pinned: false,
-                flexibleSpace: FlexibleSpaceBar(background: WelcomeHeader()),
+          );
+        },
+        loading: () => CustomScrollView(
+          slivers: [
+            const SliverToBoxAdapter(child: WelcomeHeader()),
+            const SliverToBoxAdapter(
+              child: SizedBox(
+                height: 200,
+                child: Center(child: CircularProgressIndicator()),
               ),
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: ConnectionErrorWidget(
-                    errorMessage: error.toString(),
-                    onRetry: () => ref.invalidate(surveysListProvider),
-                  ).withPadding(16, 32, 16, 16),
-                ),
+            ),
+          ],
+        ),
+        error: (error, stack) => CustomScrollView(
+          slivers: [
+            const SliverToBoxAdapter(child: WelcomeHeader()),
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: ConnectionErrorWidget(
+                  errorMessage: error.toString(),
+                  onRetry: () => ref.invalidate(surveysListProvider),
+                ).withPadding(16, 32, 16, 16),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

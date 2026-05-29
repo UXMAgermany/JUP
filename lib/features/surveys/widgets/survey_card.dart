@@ -289,9 +289,17 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
 
     final showResults = switch (widget.surveyEntry.type) {
       SurveyType.election => status == SurveyStatus.expired,
-      SurveyType.yesNo ||
-      SurveyType.multiple =>
-        hasVoted || status == SurveyStatus.expired,
+      SurveyType.yesNo => hasVoted || status == SurveyStatus.expired,
+      SurveyType.multiple => () {
+          if (status == SurveyStatus.expired) return true;
+          if (widget.userId == null) return false;
+          final serverVoteCount =
+              widget.surveyEntry.getUserVoteCount(widget.userId!);
+          final optimisticAdd =
+              _optimisticMultipleChoiceVote != null ? 1 : 0;
+          return (serverVoteCount + optimisticAdd) >=
+              widget.surveyEntry.maxVotes;
+        }(),
     };
 
     VoidCallback? yesNoTapHandler(bool voteYes) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:jup/main.dart';
 import 'package:jup/shared/models/notification_model.dart';
 import 'package:jup/shared/services/api_client.dart';
@@ -34,16 +35,16 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
       try {
         final authState = ref.read(authProvider);
         if (!authState.isAuthenticated || authState.user == null) {
-          debugPrint(
-            '[FCM] skip backend update — user not authenticated yet',
-          );
+          debugPrint('[FCM] skip backend update — user not authenticated yet');
           return;
         }
         final userId = authState.user!.id;
         final fingerprint = '$userId:$token';
         final lastSynced = await storage.getLastSyncedFcmFingerprint();
         if (lastSynced == fingerprint) {
-          debugPrint('[FCM] backend already has this token for user $userId — skip');
+          debugPrint(
+            '[FCM] backend already has this token for user $userId — skip',
+          );
           return;
         }
         final response = await client.put(
@@ -61,6 +62,30 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
         }
       } catch (e) {
         debugPrint('[FCM] failed to send token to backend: $e');
+      }
+    },
+    onFcmTokenClear: () async {
+      try {
+        final authState = ref.read(authProvider);
+        if (!authState.isAuthenticated || authState.user == null) {
+          debugPrint('[FCM] skip backend clear — user not authenticated');
+          return;
+        }
+        final userId = authState.user!.id;
+        final response = await client.put(
+          '/api/users/$userId',
+          body: {'fcmToken': null},
+          useUserAuth: true,
+        );
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          debugPrint('[FCM] backend token cleared for user $userId');
+        } else {
+          debugPrint(
+            '[FCM] backend rejected token clear: HTTP ${response.statusCode} — ${response.body}',
+          );
+        }
+      } catch (e) {
+        debugPrint('[FCM] failed to clear token in backend: $e');
       }
     },
   );

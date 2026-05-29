@@ -5,6 +5,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/widgets/text.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
+import 'package:jup/router/models/navigation_entry.dart';
+import 'package:jup/router/screens/main_page.dart';
 import 'package:jup/shared/controllers/scroll_controller_provider.dart';
 
 @RoutePage()
@@ -17,17 +19,18 @@ class AuthPage extends ConsumerStatefulWidget {
 
 class _AuthPageState extends ConsumerState<AuthPage> {
   final ScrollController _scrollController = ScrollController();
+  late final int _tabIndex = tabIndexOf(NavigationElement.profile);
   bool _isRegistered = false;
 
   @override
   void initState() {
     super.initState();
-    // Register scroll controller for Profile tab (index 3) when logged out
+    // AuthPage renders inside the Profile tab when the user is logged out.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ref
             .read(scrollControllerProvider.notifier)
-            .registerController(3, _scrollController);
+            .registerController(_tabIndex, _scrollController);
         _isRegistered = true;
       }
     });
@@ -37,7 +40,9 @@ class _AuthPageState extends ConsumerState<AuthPage> {
   void dispose() {
     if (_isRegistered) {
       try {
-        ref.read(scrollControllerProvider.notifier).unregisterController(3);
+        ref
+            .read(scrollControllerProvider.notifier)
+            .unregisterController(_tabIndex);
       } catch (_) {
         // Widget already disposed, skip unregistration
       }

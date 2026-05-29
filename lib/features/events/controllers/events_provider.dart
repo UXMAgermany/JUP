@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:jup/features/events/controllers/events_controller.dart';
 import 'package:jup/features/events/models/event_model.dart';
 import 'package:jup/shared/controllers/paginated_list_notifier.dart';

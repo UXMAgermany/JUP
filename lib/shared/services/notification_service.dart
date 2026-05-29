@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_initializing_formals
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -30,6 +32,7 @@ class NotificationService {
   final VoidCallback? _onSurveysRefreshNeeded;
   final bool Function()? _isAuthenticated;
   final Future<void> Function(String token)? _onFcmTokenReceived;
+  final Future<void> Function()? _onFcmTokenClear;
 
   final StreamController<AppNotification> _notificationController =
       StreamController<AppNotification>.broadcast();
@@ -43,25 +46,52 @@ class NotificationService {
     VoidCallback? onSurveysRefreshNeeded,
     bool Function()? isAuthenticated,
     Future<void> Function(String token)? onFcmTokenReceived,
+    Future<void> Function()? onFcmTokenClear,
   }) : _onSurveysRefreshNeeded = onSurveysRefreshNeeded,
        _isAuthenticated = isAuthenticated,
-       _onFcmTokenReceived = onFcmTokenReceived;
+       _onFcmTokenReceived = onFcmTokenReceived,
+       _onFcmTokenClear = onFcmTokenClear;
 
-  /// Initialize the notification service
+  /// Initialize the notification service.
+  ///
+  /// Runs at app start, BEFORE any login. Reads the current permission status
+  /// without prompting, wires up message/token listeners, and only fetches the
+  /// FCM token if permission was already granted on a previous run.
+  ///
+  /// Permission requests, topic subscriptions, and the backend token sync are
+  /// deferred to the auth controller (see [requestPermissionsAndSetup] and
+  /// [subscribeToEnabledTopics]) so that logged-out users do not receive
+  /// broadcast notifications.
   Future<void> initialize() async {
     try {
-      // Request permissions
-      final settings = await _requestPermissions();
+      final settings = await _firebaseMessaging.getNotificationSettings();
+      final isAuthorized =
+          settings.authorizationStatus ==
+          firebase_messaging.AuthorizationStatus.authorized;
+      await _storage.setPermissionGranted(isAuthorized);
 
-      if (settings.authorizationStatus ==
-          firebase_messaging.AuthorizationStatus.authorized) {
-        await _storage.setPermissionGranted(true);
+      // Local notifications can be initialised without requesting permission;
+      // the actual permission prompt is owned by FirebaseMessaging.
+      await _initializeLocalNotifications();
 
-        // Initialize local notifications
-        await _initializeLocalNotifications();
+      // Register listeners up front so they are ready as soon as the user
+      // logs in and permission is granted — no app restart required.
+      _firebaseMessaging.onTokenRefresh.listen((newToken) {
+        debugPrint('[FCM] onTokenRefresh fired: ${_tokenPrefix(newToken)}');
+        _storage.saveFcmToken(newToken);
+        _onFcmTokenReceived?.call(newToken);
+      });
+      firebase_messaging.FirebaseMessaging.onMessage.listen(
+        _handleForegroundMessage,
+      );
+      firebase_messaging.FirebaseMessaging.onMessageOpenedApp.listen(
+        _handleMessageTap,
+      );
+      firebase_messaging.FirebaseMessaging.onBackgroundMessage(
+        firebaseMessagingBackgroundHandler,
+      );
 
-        // For iOS, request APNS token before getting FCM token
-        // Note: This will fail with free Apple Developer accounts
+      if (isAuthorized) {
         if (Platform.isIOS) {
           try {
             await _firebaseMessaging.getAPNSToken();
@@ -70,7 +100,6 @@ class NotificationService {
           }
         }
 
-        // Get FCM token (will also fail without APNS on iOS)
         String? token;
         try {
           token = await _firebaseMessaging.getToken();
@@ -87,38 +116,10 @@ class NotificationService {
           );
         }
 
-        // Listeners must be registered regardless of initial token availability:
-        // on iOS the APNS token may arrive late, in which case onTokenRefresh
-        // is the only way the FCM token reaches us.
-        _firebaseMessaging.onTokenRefresh.listen((newToken) {
-          debugPrint(
-            '[FCM] onTokenRefresh fired: ${_tokenPrefix(newToken)}',
-          );
-          _storage.saveFcmToken(newToken);
-          _onFcmTokenReceived?.call(newToken);
-        });
-
-        firebase_messaging.FirebaseMessaging.onMessage.listen(
-          _handleForegroundMessage,
-        );
-        firebase_messaging.FirebaseMessaging.onMessageOpenedApp.listen(
-          _handleMessageTap,
-        );
-
         final initialMessage = await _firebaseMessaging.getInitialMessage();
         if (initialMessage != null) {
           _handleMessageTap(initialMessage);
         }
-
-        firebase_messaging.FirebaseMessaging.onBackgroundMessage(
-          firebaseMessagingBackgroundHandler,
-        );
-
-        if (token != null) {
-          await subscribeToEnabledTopics();
-        }
-      } else {
-        await _storage.setPermissionGranted(false);
       }
     } catch (e) {
       debugPrint('Error initializing notification service: $e');
@@ -134,6 +135,65 @@ class NotificationService {
       sound: true,
       provisional: false,
     );
+  }
+
+  /// Request system notification permission and finish the FCM setup.
+  ///
+  /// Called by the auth controller after a successful login / auto-login so
+  /// the permission prompt only appears in an authenticated context. On
+  /// already-granted devices this is a quick no-op aside from the token fetch.
+  Future<void> requestPermissionsAndSetup() async {
+    try {
+      final settings = await _requestPermissions();
+      final isAuthorized =
+          settings.authorizationStatus ==
+          firebase_messaging.AuthorizationStatus.authorized;
+      await _storage.setPermissionGranted(isAuthorized);
+      if (!isAuthorized) return;
+
+      if (Platform.isIOS) {
+        try {
+          await _firebaseMessaging.getAPNSToken();
+        } catch (e) {
+          debugPrint(
+            '[FCM] requestPermissionsAndSetup: getAPNSToken failed: $e',
+          );
+        }
+      }
+
+      String? token = await _storage.getFcmToken();
+      if (token == null) {
+        try {
+          token = await _firebaseMessaging.getToken();
+        } catch (e) {
+          debugPrint('[FCM] requestPermissionsAndSetup: getToken failed: $e');
+        }
+        if (token != null) {
+          await _storage.saveFcmToken(token);
+          await _onFcmTokenReceived?.call(token);
+        }
+      }
+    } catch (e) {
+      debugPrint('[FCM] requestPermissionsAndSetup: unexpected error: $e');
+    }
+  }
+
+  /// Clear the FCM token in the backend and locally.
+  ///
+  /// MUST run before the auth/session token is cleared — the backend PUT is
+  /// authenticated and silently fails once the JWT is gone.
+  Future<void> clearFcmTokenInBackend() async {
+    try {
+      await _onFcmTokenClear?.call();
+    } catch (e) {
+      debugPrint('[FCM] clearFcmTokenInBackend: backend clear failed: $e');
+    }
+    try {
+      await _firebaseMessaging.deleteToken();
+    } catch (e) {
+      debugPrint('[FCM] clearFcmTokenInBackend: deleteToken failed: $e');
+    }
+    await _storage.clearFcmToken();
   }
 
   /// Subscribe to topics based on user settings
@@ -163,10 +223,12 @@ class NotificationService {
     const androidSettings = AndroidInitializationSettings(
       NotificationConstants.androidIconResource,
     );
+    // requestXxxPermission flags are kept off here — permission is owned by
+    // FirebaseMessaging.requestPermission(), which only runs after login.
     const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
     );
 
     const initSettings = InitializationSettings(
@@ -175,7 +237,7 @@ class NotificationService {
     );
 
     await _localNotifications.initialize(
-      initSettings,
+      settings: initSettings,
       onDidReceiveNotificationResponse: _onNotificationTap,
     );
 
@@ -238,10 +300,10 @@ class NotificationService {
     };
 
     await _localNotifications.show(
-      notification.id.hashCode,
-      notification.title,
-      notification.body,
-      details,
+      id: notification.id.hashCode,
+      title: notification.title,
+      body: notification.body,
+      notificationDetails: details,
       payload: jsonEncode(payloadData),
     );
   }

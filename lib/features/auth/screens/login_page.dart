@@ -2,14 +2,17 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/features/auth/widgets/forgot_password_sheet.dart';
+import 'package:jup/router/controllers/app_router.gr.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
-import 'package:jup/shared/widgets/default_app_bar.dart';
+import 'package:jup/shared/services/error_handler.dart';
 import 'package:jup/shared/widgets/pop_ups.dart';
 import 'package:jup/shared/widgets/text.dart';
-import 'package:jup/router/controllers/app_router.gr.dart';
-import 'package:jup/features/auth/controllers/auth_provider.dart';
-import 'package:jup/shared/services/error_handler.dart';
+
+import '../../../router/models/navigation_entry.dart';
+import '../../../router/widgets/main_app_bar.dart';
+import '../../../router/widgets/main_app_drawer.dart';
 
 @RoutePage()
 class LoginPage extends ConsumerStatefulWidget {
@@ -86,15 +89,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 title: "Dein Account ist noch nicht verifiziert",
                 description:
                     "Bevor du die App nutzen kannst musst du dich im Jugendzentrum verifizieren.\n\nWarum ist das so?\n\nDiese App richtet sich gezielt an Jugendliche aus der Region Süderbrarup. Ähnlich wie im Jugendzentrum soll die App ein geschützer Raum sein, zu dem nicht jeder Zugang hat. Deswegen musst du dich nach deiner Anmeldung einmalig mit deinem Ausweisdokument im Jugendzentrum verizifieren.",
-                actions: [
-                  Builder(
-                    builder: (dialogContext) => TextButton(
-                      child: const Text('Schließen'),
-                      onPressed: () {
-                        Navigator.of(dialogContext).pop();
-                        context.router.replaceAll([const MainRoute()]);
-                      },
-                    ),
+                actions: (dialogContext) => [
+                  TextButton(
+                    child: const Text('Schließen'),
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      context.router.replaceAll([const MainRoute()]);
+                    },
                   ),
                 ],
               );
@@ -109,7 +110,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
 
     return Scaffold(
-      appBar: DefaultAppBar(titleText: "Einloggen", centerTitle: false),
+      appBar: const MainAppBar(
+        activeTab: NavigationElement.profile,
+        titleOverride: "Einloggen",
+      ),
+      drawer: const MainAppDrawer(),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -196,7 +201,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                     onPressed: () {
                                       showModalBottomSheet<void>(
                                         context: context,
-                                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
+                                        backgroundColor: Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerLow,
                                         builder: (_) =>
                                             const ForgotPasswordSheet(),
                                       );

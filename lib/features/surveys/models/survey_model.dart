@@ -58,6 +58,9 @@ class SurveyEntry {
   final String? imageUrl;
   final DateTime expiresAt;
   final DateTime createdAt;
+  /// Scheduled visibility time (custom CMS field). Null for immediate publish.
+  /// Used as primary sort key; falls back to createdAt when null.
+  final DateTime? publishAt;
   final SurveyType type;
   final int maxVotes;
 
@@ -84,6 +87,7 @@ class SurveyEntry {
     this.imageUrl,
     required this.expiresAt,
     required this.createdAt,
+    this.publishAt,
     required this.type,
     this.maxVotes = 1,
     this.options,
@@ -93,6 +97,9 @@ class SurveyEntry {
     this.allowCustomOptions = false,
     this.customOptions = const [],
   });
+
+  /// Effective visibility time used for sorting.
+  DateTime get effectiveDate => publishAt ?? createdAt;
 
   List<CustomOption> get approvedCustomOptions => customOptions
       .where((o) => o.status == CustomOptionStatus.approved)
@@ -314,6 +321,9 @@ class SurveyEntry {
             attributes['publishedAt'] as String? ??
             DateTime.now().toIso8601String(),
       ),
+      publishAt: attributes['publishAt'] != null
+          ? DateTime.parse(attributes['publishAt'] as String)
+          : null,
       type: type,
       maxVotes: attributes['maxVotes'] as int? ?? 1,
       options: options,
@@ -334,6 +344,7 @@ class SurveyEntry {
       'imageUrl': imageUrl,
       'expiresAt': expiresAt.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
+      'publishAt': publishAt?.toIso8601String(),
       'type': switch (type) {
         SurveyType.yesNo => 'yes-no',
         SurveyType.election => 'election',
@@ -345,5 +356,74 @@ class SurveyEntry {
       'noVoters': noVoters,
       'comments': comments.map((e) => e.toJson()).toList(),
     };
+  }
+}
+
+/// Input für den Admin-Create-Wizard. Wird über
+/// [SurveysController.createSurvey] an `POST /api/surveys` geschickt.
+class SurveyCreateInput {
+  final String title;
+  final String? subTitle;
+  final int? imageMediaId;
+  final SurveyType type;
+  final DateTime expiresAt;
+  final DateTime? publishAt;
+  final int maxVotes;
+  final bool allowCustomOptions;
+
+  /// Optionen-Texte für `multiple` und `election`. Leere Einträge werden
+  /// in [toCreateBody] herausgefiltert. Bei `yesNo` ignoriert.
+  final List<String> optionTexts;
+
+  SurveyCreateInput({
+    required this.title,
+    this.subTitle,
+    this.imageMediaId,
+    required this.type,
+    required this.expiresAt,
+    this.publishAt,
+    this.maxVotes = 1,
+    this.allowCustomOptions = false,
+    this.optionTexts = const [],
+  });
+
+  /// Strapi erwartet das Payload als `{ data: { ... } }` — diese Methode
+  /// liefert den inneren `data`-Map, der Aufrufer wrappt selbst.
+  Map<String, dynamic> toCreateBody() {
+    final body = <String, dynamic>{
+      'title': title,
+      'type': switch (type) {
+        SurveyType.yesNo => 'yes-no',
+        SurveyType.election => 'election',
+        SurveyType.multiple => 'multiple',
+      },
+      'expiresAt':
+          '${expiresAt.year.toString().padLeft(4, '0')}-${expiresAt.month.toString().padLeft(2, '0')}-${expiresAt.day.toString().padLeft(2, '0')}',
+      'maxVotes': maxVotes,
+      'allowCustomOptions': type == SurveyType.multiple && allowCustomOptions,
+    };
+
+    if (subTitle != null && subTitle!.trim().isNotEmpty) {
+      body['subTitle'] = subTitle!.trim();
+    }
+    if (imageMediaId != null) {
+      body['image'] = imageMediaId;
+    }
+    if (publishAt != null) {
+      body['publishAt'] = publishAt!.toUtc().toIso8601String();
+    }
+
+    if (type == SurveyType.multiple || type == SurveyType.election) {
+      final nonEmpty = optionTexts
+          .map((t) => t.trim())
+          .where((t) => t.isNotEmpty)
+          .map((t) => {'text': t})
+          .toList();
+      if (nonEmpty.isNotEmpty) {
+        body['options'] = nonEmpty;
+      }
+    }
+
+    return body;
   }
 }

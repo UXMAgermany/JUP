@@ -1,9 +1,11 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
+import 'package:jup/router/models/navigation_entry.dart';
+import 'package:jup/router/screens/main_page.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
-import 'package:jup/shared/widgets/default_app_bar.dart';
 import 'package:jup/shared/widgets/empty_state.dart';
 import 'package:jup/shared/widgets/text.dart';
 import 'package:jup/shared/widgets/event_card_wrapper.dart';
@@ -53,18 +55,23 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
     _gemerktScrollController.addListener(_onGemerktScroll);
     _zugesagtScrollController.addListener(_onZugesagtScroll);
 
-    // Register scroll controller for Events tab (index 1)
+    // Register scroll controller for Events tab.
     // We register the first tab's controller as the default
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ref
             .read(scrollControllerProvider.notifier)
-            .registerController(1, _alleScrollController);
+            .registerController(
+              tabIndexOf(NavigationElement.events),
+              _alleScrollController,
+            );
         _isRegistered = true;
 
         // Fetch events with initial filters from SharedPreferences
         final initialFilters = ref.read(eventsFilterProvider);
-        ref.read(eventsListProvider.notifier).fetchEvents(
+        ref
+            .read(eventsListProvider.notifier)
+            .fetchEvents(
               categories: initialFilters.isNotEmpty ? initialFilters : null,
             );
       }
@@ -90,7 +97,10 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
     try {
       ref
           .read(scrollControllerProvider.notifier)
-          .registerController(1, activeController);
+          .registerController(
+            tabIndexOf(NavigationElement.events),
+            activeController,
+          );
     } catch (_) {
       // Widget disposed, skip registration
     }
@@ -100,7 +110,9 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
   void dispose() {
     if (_isRegistered) {
       try {
-        ref.read(scrollControllerProvider.notifier).unregisterController(1);
+        ref
+            .read(scrollControllerProvider.notifier)
+            .unregisterController(tabIndexOf(NavigationElement.events));
       } catch (_) {
         // Widget already disposed, skip unregistration
       }
@@ -142,9 +154,9 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
 
     // Listen for filter changes and re-fetch from server
     ref.listen<Set<EventCategory>>(eventsFilterProvider, (previous, next) {
-      ref.read(eventsListProvider.notifier).fetchEvents(
-            categories: next.isNotEmpty ? next : null,
-          );
+      ref
+          .read(eventsListProvider.notifier)
+          .fetchEvents(categories: next.isNotEmpty ? next : null);
     });
 
     if (authState.isAuthenticated == false) {
@@ -153,14 +165,12 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
           context.router.replaceAll([const EventsLoggedOutRoute()]);
         }
       });
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Center(child: CircularProgressIndicator());
     }
 
-    return Scaffold(
-      appBar: DefaultAppBar(
-        titleText: 'Events',
-        centerTitle: false,
-        bottom: TabBar(
+    return Column(
+      children: [
+        TabBar(
           controller: _tabController,
           tabs: const [
             Tab(text: 'Alle'),
@@ -168,69 +178,75 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
             Tab(text: 'Zugesagt'),
           ],
         ),
-      ),
-      body: eventsAsyncValue.when(
-        data: (events) {
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              // Alle tab
-              _buildEventsList(
-                context,
-                events,
-                currentUser,
-                selectedEventsFilters,
-                _alleScrollController,
-                showPopular: true,
-              ),
-              // Gemerkt tab
-              _buildEventsList(
-                context,
-                events
-                    .where(
-                      (event) => currentUser?.hasEventSaved(event.id) ?? false,
-                    )
-                    .toList(),
-                currentUser,
-                selectedEventsFilters,
-                _gemerktScrollController,
-                emptyMessage:
-                    "Du hast dir noch keine Events gemerkt. Klick auf das Lesezeichen-Icon bei Events, um sie hier zu sehen.",
-              ),
-              // Zugesagt tab
-              _buildEventsList(
-                context,
-                events
-                    .where(
-                      (event) =>
-                          currentUser != null &&
-                          event.isUserParticipating(currentUser.id.toString()),
-                    )
-                    .toList(),
-                currentUser,
-                selectedEventsFilters,
-                _zugesagtScrollController,
-                emptyMessage:
-                    'Du hast noch zu keinem Event zugesagt. Klick bei einem Event auf den Button „Jup, bin dabei", um es hier zu sehen.',
-              ),
-            ],
-          );
-        },
-        loading: () => const SizedBox(
-          height: 300,
-          child: Center(child: CircularProgressIndicator()),
-        ),
-        error: (error, stack) => SizedBox(
-          height: 300,
-          child: Center(
-            child: ConnectionErrorWidget(
-              errorMessage: error.toString(),
-              onRetry: () => ref.read(eventsListProvider.notifier).refresh(),
+        Expanded(
+          child: eventsAsyncValue.when(
+            data: (events) {
+              return TabBarView(
+                controller: _tabController,
+                children: [
+                  // Alle tab
+                  _buildEventsList(
+                    context,
+                    events,
+                    currentUser,
+                    selectedEventsFilters,
+                    _alleScrollController,
+                    showPopular: true,
+                  ),
+                  // Gemerkt tab
+                  _buildEventsList(
+                    context,
+                    events
+                        .where(
+                          (event) =>
+                              currentUser?.hasEventSaved(event.id) ?? false,
+                        )
+                        .toList(),
+                    currentUser,
+                    selectedEventsFilters,
+                    _gemerktScrollController,
+                    emptyMessage:
+                        "Du hast dir noch keine Events gemerkt. Klick auf das Lesezeichen-Icon bei Events, um sie hier zu sehen.",
+                  ),
+                  // Zugesagt tab
+                  _buildEventsList(
+                    context,
+                    events
+                        .where(
+                          (event) =>
+                              currentUser != null &&
+                              event.isUserParticipating(
+                                currentUser.id.toString(),
+                              ),
+                        )
+                        .toList(),
+                    currentUser,
+                    selectedEventsFilters,
+                    _zugesagtScrollController,
+                    emptyMessage:
+                        'Du hast noch zu keinem Event zugesagt. Klick bei einem Event auf den Button „Jup, bin dabei", um es hier zu sehen.',
+                  ),
+                ],
+              );
+            },
+            loading: () => const SizedBox(
               height: 300,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (error, stack) => SizedBox(
+              height: 300,
+              child: Center(
+                child: ConnectionErrorWidget(
+                  errorMessage: error.toString(),
+                  onRetry: () =>
+                      ref.read(eventsListProvider.notifier).refresh(),
+                  height: 300,
+                ),
+              ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -245,7 +261,12 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
   }) {
     final seenPosts = ref.watch(seenPostsProvider);
     // Events are already filtered by the server, no client-side filtering needed
-    final filteredEvents = sortWithBadges(allEvents, seenPosts, (e) => e.documentId, (e) => e.isPast);
+    final filteredEvents = sortWithBadges(
+      allEvents,
+      seenPosts,
+      (e) => e.documentId,
+      (e) => e.isPast,
+    );
 
     // Get popular events (participant count >10) - only for "Alle" tab
     final popularEvents = showPopular
@@ -267,7 +288,7 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
       child: ListView(
         controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        cacheExtent: 100,
+        scrollCacheExtent: const ScrollCacheExtent.pixels(100),
         children: [
           const SizedBox(height: 16),
 
@@ -280,7 +301,7 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                cacheExtent: 50,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(50),
                 itemCount: topPopular.length,
                 separatorBuilder: (context, index) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
@@ -289,19 +310,27 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
                     key: Key('event_popular_${event.documentId}'),
                     onVisibilityChanged: (info) {
                       if (info.visibleFraction > 0.5) {
-                        ref.read(seenPostsProvider.notifier).markAsSeen(event.documentId);
+                        ref
+                            .read(seenPostsProvider.notifier)
+                            .markAsSeen(event.documentId);
                       }
                     },
                     child: EventCardWrapper(
                       event: event,
                       isFullWidth: false,
-                      isNew: !event.isPast && isNewPost(
-                        documentId: event.documentId,
-                        createdAt: event.createdAt,
-                        seenPosts: seenPosts,
-                        isLoaded: ref.read(seenPostsProvider.notifier).isLoaded,
-                        firstLaunchDate: ref.read(seenPostsProvider.notifier).firstLaunchDate,
-                      ),
+                      isNew:
+                          !event.isPast &&
+                          isNewPost(
+                            documentId: event.documentId,
+                            createdAt: event.createdAt,
+                            seenPosts: seenPosts,
+                            isLoaded: ref
+                                .read(seenPostsProvider.notifier)
+                                .isLoaded,
+                            firstLaunchDate: ref
+                                .read(seenPostsProvider.notifier)
+                                .firstLaunchDate,
+                          ),
                       onTap: () => context.router.push(
                         EventDetailRoute(eventEntry: event),
                       ),
@@ -343,7 +372,7 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
                   title: "Ganz schön leer hier!",
                   message: selectedEventsFilters.isEmpty
                       ? (emptyMessage ??
-                          "Hier ist noch nichts los. Schau später nochmal rein, um die neuesten Beiträge und Infos zu sehen!")
+                            "Hier ist noch nichts los. Schau später nochmal rein, um die neuesten Beiträge und Infos zu sehen!")
                       : "Für die ausgewählten Filter gibt es keine Events. Probiere andere Filter aus!",
                 ),
               ),
@@ -354,19 +383,29 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
                 key: Key('event_${event.documentId}'),
                 onVisibilityChanged: (info) {
                   if (info.visibleFraction > 0.5) {
-                    ref.read(seenPostsProvider.notifier).markAsSeen(event.documentId);
+                    ref
+                        .read(seenPostsProvider.notifier)
+                        .markAsSeen(event.documentId);
                   }
                 },
                 child: EventCardWrapper(
                   event: event,
-                  isNew: !event.isPast && isNewPost(
-                    documentId: event.documentId,
-                    createdAt: event.createdAt,
-                    seenPosts: seenPosts,
-                    isLoaded: ref.read(seenPostsProvider.notifier).isLoaded,
-                    firstLaunchDate: ref.read(seenPostsProvider.notifier).firstLaunchDate,
+                  isNew:
+                      !event.isPast &&
+                      isNewPost(
+                        documentId: event.documentId,
+                        createdAt: event.createdAt,
+                        seenPosts: seenPosts,
+                        isLoaded: ref.read(seenPostsProvider.notifier).isLoaded,
+                        firstLaunchDate: ref
+                            .read(seenPostsProvider.notifier)
+                            .firstLaunchDate,
+                      ),
+                  padding: const EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    bottom: 16,
                   ),
-                  padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
                   onTap: () =>
                       context.router.push(EventDetailRoute(eventEntry: event)),
                 ),

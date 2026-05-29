@@ -18,6 +18,7 @@ class SharedThemeData {
 
 class ThemeLightColors {
   static const primary = Color(0xFF63568F);
+  static const primaryFixed = Color(0xFF9A7FEE);
   static const primaryContainer = Color(0xFFE8DDFF);
   static const onPrimary = Color(0xFFFFFFFF);
   static const onPrimaryContainer = Color(0xFF4B3E76);
@@ -40,6 +41,7 @@ class ThemeLightColors {
   static const errorContainer = Color(0xFFFFDAD6);
   static const onErrorContainer = Color(0xFF93000A);
   static const onSurface = Color(0xFF1D1B20);
+  static const onSurfaceSecondary = Color(0xFF646363);
   static const onSurfaceVariant = Color(0xFF44464F);
   static const outline = Color(0xFF757780);
   static const outlineVariant = Color(0xFFC5C6D0);
@@ -49,6 +51,7 @@ class ThemeLightColors {
 
 class ThemeDarkColors {
   static const primary = Color(0xFFCEBDFF);
+  static const primaryFixed = Color(0xFF9A7FEE);
   static const primaryContainer = Color(0xFF4B3E76);
   static const onPrimary = Color(0xFF35275E);
   static const onPrimaryContainer = Color(0xFFE8DDFF);
@@ -71,6 +74,7 @@ class ThemeDarkColors {
   static const errorContainer = Color(0xFF93000A);
   static const onErrorContainer = Color(0xFFFFDAD6);
   static const onSurface = Color(0xFFE7E0E8);
+  static const onSurfaceSecondary = Color(0xFFFAFAFA);
   static const onSurfaceVariant = Color(0xFFC5C6D0);
   static const outline = Color(0xFF8F9099);
   static const outlineVariant = Color(0xFF44464F);
@@ -199,6 +203,7 @@ var lightTheme = ThemeData(
   textTheme: textTheme,
   colorScheme: const ColorScheme(
     primary: ThemeLightColors.primary,
+    primaryFixed: ThemeLightColors.primaryFixed,
     primaryContainer: ThemeLightColors.primaryContainer,
     inversePrimary: ThemeLightColors.inversePrimary,
     secondary: ThemeLightColors.secondary,
@@ -365,6 +370,7 @@ var darkTheme = ThemeData(
   colorScheme: const ColorScheme(
     brightness: Brightness.dark,
     primary: ThemeDarkColors.primary,
+    primaryFixed: ThemeDarkColors.primaryFixed,
     primaryContainer: ThemeDarkColors.primaryContainer,
     inversePrimary: ThemeDarkColors.inversePrimary,
     secondary: ThemeDarkColors.secondary,

@@ -5,6 +5,7 @@ import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/features/events/controllers/events_provider.dart';
 import 'package:jup/features/events/models/event_model.dart';
 import 'package:jup/features/events/widgets/event_bookmark_button.dart';
+import 'package:jup/features/events/widgets/event_content_blocks.dart';
 import 'package:jup/features/events/widgets/event_participation_button.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
@@ -13,7 +14,6 @@ import 'package:jup/shared/utils/date_format_helper.dart';
 import 'package:jup/shared/widgets/comment_section.dart';
 import 'package:jup/shared/widgets/detail_page_sliver_app_bar.dart';
 import 'package:jup/shared/widgets/event_card_wrapper.dart';
-import 'package:jup/shared/widgets/expandable_text_section.dart';
 import 'package:jup/shared/widgets/login_required_dialog.dart';
 import 'package:jup/shared/widgets/text.dart';
 import 'package:share_plus/share_plus.dart';
@@ -56,8 +56,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     );
 
     // Get the latest event data (with updated participant list and comments)
-    final currentEvent =
-        eventParticipationState.valueOrNull ?? widget.eventEntry;
+    final currentEvent = eventParticipationState.value ?? widget.eventEntry;
     final isParticipating =
         userId != null && currentEvent.isUserParticipating(userId);
 
@@ -95,12 +94,13 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
               isDarkMode,
             ),
             isDarkMode: isDarkMode,
+            heroTag: 'detail-hero-event-${widget.eventEntry.documentId}',
             onBackPressed: () => context.router.maybePop(),
             onSharePressed: () async {
               final deepLink = _deepLinkService.generateEventLink(
                 widget.eventEntry.documentId,
               );
-              await Share.share(deepLink);
+              await SharePlus.instance.share(ShareParams(text: deepLink));
             },
           ),
 
@@ -243,8 +243,15 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                 ),
                 SizedBox(height: 4),
 
-                // Description
-                ExpandableTextSection(text: widget.eventEntry.description),
+                // Description: rendert DynamicZone contentBlocks falls
+                // vorhanden (neue Events), sonst fallback auf das `text`-Feld
+                // (Bestands-Events vor der Wizard-Migration).
+                EventContentBlocks(
+                  blocks: widget.eventEntry.contentBlocks,
+                  fallbackText: widget.eventEntry.description,
+                  heroTagPrefix:
+                      'detail-content-event-${widget.eventEntry.documentId}',
+                ),
                 SizedBox(height: 4),
 
                 // Comments section
@@ -256,25 +263,24 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   ).colorScheme.surfaceContainer,
                   onSubmitComment:
                       (documentId, text, userId, currentComments) async {
-                    final controller = ref.read(eventsControllerProvider);
-                    final updatedEvent = await controller.addComment(
-                      documentId,
-                      text,
-                      userId,
-                      currentComments,
-                    );
-                    // Update both the list provider and the participation provider
-                    ref
-                        .read(eventsListProvider.notifier)
-                        .updateEventInList(updatedEvent);
-                    ref
-                        .read(
-                          eventParticipationProvider(documentId).notifier,
-                        )
-                        .updateEvent(updatedEvent);
-                  },
-                  onDeleteComment:
-                      (documentId, commentId, currentComments) async {
+                        final controller = ref.read(eventsControllerProvider);
+                        final updatedEvent = await controller.addComment(
+                          documentId,
+                          text,
+                          userId,
+                          currentComments,
+                        );
+                        // Update both the list provider and the participation provider
+                        ref
+                            .read(eventsListProvider.notifier)
+                            .updateEventInList(updatedEvent);
+                        ref
+                            .read(
+                              eventParticipationProvider(documentId).notifier,
+                            )
+                            .updateEvent(updatedEvent);
+                      },
+                  onDeleteComment: (documentId, commentId, currentComments) async {
                     final controller = ref.read(eventsControllerProvider);
                     final updatedEvent = await controller.deleteComment(
                       documentId,
