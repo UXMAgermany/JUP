@@ -5,14 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:jup/features/groups/controllers/groups_provider.dart';
+import 'package:jup/features/groups/models/scope_option.dart';
+import 'package:jup/features/groups/widgets/group_scope_step.dart';
 import 'package:jup/features/news/controllers/news_create_form_provider.dart';
 import 'package:jup/features/news/controllers/news_provider.dart';
 import 'package:jup/features/news/screens/news_create/step1_category.dart';
 import 'package:jup/features/news/screens/news_create/step2_basic_info.dart';
 import 'package:jup/features/news/screens/news_create/step3_content.dart';
 import 'package:jup/features/news/screens/news_create/step4_publish.dart';
+import 'package:jup/shared/extensions/snackbar_extension.dart';
 import 'package:jup/shared/models/app_exception.dart';
 import 'package:jup/shared/services/media_picker.dart';
+import 'package:jup/shared/widgets/create_page_app_bar.dart';
 import 'package:jup/shared/widgets/media_source_sheet.dart';
 import 'package:jup/shared/widgets/text.dart';
 
@@ -25,7 +30,9 @@ class NewsCreatePage extends ConsumerStatefulWidget {
 }
 
 class _NewsCreatePageState extends ConsumerState<NewsCreatePage> {
-  static const _stepCount = 4;
+  /// Fixe Anzahl Steps OHNE den Scope-Step. Der Scope-Step wird dynamisch
+  /// vorne angehängt, sobald [_shouldShowScopeStep] true liefert.
+  static const _stepCountWithoutScope = 4;
 
   final _pageController = PageController();
   final _mediaPicker = MediaPicker();
@@ -45,8 +52,17 @@ class _NewsCreatePageState extends ConsumerState<NewsCreatePage> {
     _pageController.jumpToPage(step);
   }
 
-  Future<void> _onPrimaryPressed() async {
-    if (_currentStep < _stepCount - 1) {
+  /// Scope-Step nur dann zeigen, wenn dem User mehr als eine Option zur Wahl
+  /// steht — oder seine einzige Option eine konkrete Gruppe ist (Group-Admin
+  /// soll auch bei nur einer eigenen Gruppe den Scope-Step durchlaufen).
+  bool _shouldShowScopeStep(List<ScopeOption> options) {
+    if (options.isEmpty) return false;
+    if (options.length == 1 && options.first.isGlobal) return false;
+    return true;
+  }
+
+  Future<void> _onPrimaryPressed(int stepCount) async {
+    if (_currentStep < stepCount - 1) {
       _goToStep(_currentStep + 1);
       return;
     }
@@ -55,8 +71,6 @@ class _NewsCreatePageState extends ConsumerState<NewsCreatePage> {
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    final messenger = ScaffoldMessenger.of(context);
-
     final form = ref.read(newsCreateFormProvider);
     final entry = await ref.read(newsCreateProvider.notifier).submit(form);
     if (!mounted) return;
@@ -73,7 +87,7 @@ class _NewsCreatePageState extends ConsumerState<NewsCreatePage> {
     final message = error is AppException
         ? error.message
         : 'News konnte nicht erstellt werden.';
-    messenger.showSnackBar(SnackBar(content: Text(message)));
+    context.showAppSnackbar(message);
   }
 
   Future<File?> _pickImageWithFeedback(
@@ -84,9 +98,7 @@ class _NewsCreatePageState extends ConsumerState<NewsCreatePage> {
       return await _mediaPicker.pickImage(source, aspectRatio: aspectRatio);
     } on AppException catch (e) {
       if (!mounted) return null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      context.showAppSnackbar(e.message);
       return null;
     }
   }
@@ -96,9 +108,7 @@ class _NewsCreatePageState extends ConsumerState<NewsCreatePage> {
       return await _mediaPicker.pickVideo(source);
     } on AppException catch (e) {
       if (!mounted) return null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      context.showAppSnackbar(e.message);
       return null;
     }
   }
@@ -129,8 +139,10 @@ class _NewsCreatePageState extends ConsumerState<NewsCreatePage> {
     }
   }
 
-  bool _isCurrentStepValid(NewsCreateFormState s) {
-    switch (_currentStep) {
+  bool _isCurrentStepValid(NewsCreateFormState s, bool showScopeStep) {
+    if (showScopeStep && _currentStep == 0) return s.isScopeStepValid;
+    final originalStep = showScopeStep ? _currentStep - 1 : _currentStep;
+    switch (originalStep) {
       case 0:
         return s.isStep1Valid;
       case 1:
@@ -148,24 +160,52 @@ class _NewsCreatePageState extends ConsumerState<NewsCreatePage> {
   Widget build(BuildContext context) {
     if (_success) return _buildSuccessView(context);
 
+    // myGroupsProvider muss geladen sein, bevor wir Scope-Optionen +
+    // Auto-Skip entscheiden — sonst Race-Condition siehe Survey-Stepper.
+    final myGroupsAsync = ref.watch(myGroupsProvider);
+    if (!myGroupsAsync.hasValue) {
+      return Scaffold(
+        resizeToAvoidBottomInset: false,
+        appBar: CreatePageAppBar(
+          title: 'News erstellen',
+          onClose: () => Navigator.of(context).pop(),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final state = ref.watch(newsCreateFormProvider);
     final controller = ref.read(newsCreateFormProvider.notifier);
     final submitting = ref.watch(newsCreateProvider).isLoading;
-    final isLast = _currentStep == _stepCount - 1;
-    final canAdvance = _isCurrentStepValid(state) && !submitting;
+    final scopeOptions = ref.watch(scopeOptionsProvider);
+    final showScopeStep = _shouldShowScopeStep(scopeOptions);
+
+    // Auto-Skip: Wenn kein Scope-Step angezeigt wird, gilt der Scope
+    // implizit als „global" (= null). scopeSelected wird auf true gesetzt,
+    // damit der Submit-Pfad keine Inkonsistenz hat.
+    if (!showScopeStep && !state.scopeSelected) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) controller.setScope(null);
+      });
+    }
+
+    final stepCount = _stepCountWithoutScope + (showScopeStep ? 1 : 0);
+    final isLast = _currentStep == stepCount - 1;
+    final canAdvance = _isCurrentStepValid(state, showScopeStep) && !submitting;
 
     return Stack(
       children: [
         Scaffold(
-          appBar: AppBar(
-            toolbarHeight: 104,
-            leading: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: submitting ? null : () => Navigator.of(context).pop(),
-              tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-            ),
-            centerTitle: false,
-            title: const HeadlineSmallEmphasized(text: 'News erstellen'),
+          // MainPage-Scaffold (Eltern) handelt den Keyboard-Inset bereits.
+          // Ohne diesen Flag würde dieses verschachtelte Scaffold den Inset
+          // ein zweites Mal abziehen (MediaQuery wird in main_page.dart via
+          // removePadding mit Aussen-Context weitergereicht und leakt die
+          // unkonsumierten viewInsets in den Sub-Tree) — Folge: Body wird
+          // doppelt geschrumpft, Footer-Button hüpft beim Öffnen der Tastatur.
+          resizeToAvoidBottomInset: false,
+          appBar: CreatePageAppBar(
+            title: 'News erstellen',
+            onClose: submitting ? null : () => Navigator.of(context).pop(),
           ),
           body: AbsorbPointer(
             absorbing: submitting,
@@ -180,6 +220,14 @@ class _NewsCreatePageState extends ConsumerState<NewsCreatePage> {
                       physics: const NeverScrollableScrollPhysics(),
                       onPageChanged: (i) => setState(() => _currentStep = i),
                       children: [
+                        if (showScopeStep)
+                          GroupScopeStep(
+                            title: 'Für wen willst du die News erstellen?',
+                            selectedGroupDocumentId: state.scopeGroupDocumentId,
+                            selected: state.scopeSelected,
+                            onSelect: (o) =>
+                                controller.setScope(o.groupDocumentId),
+                          ),
                         NewsCreateStep1Category(
                           selected: state.category,
                           onSelect: controller.setCategory,
@@ -245,7 +293,9 @@ class _NewsCreatePageState extends ConsumerState<NewsCreatePage> {
                             const SizedBox(width: 12),
                           ],
                           FilledButton(
-                            onPressed: canAdvance ? _onPrimaryPressed : null,
+                            onPressed: canAdvance
+                                ? () => _onPrimaryPressed(stepCount)
+                                : null,
                             child: Text(isLast ? 'Veröffentlichen' : 'Weiter'),
                           ),
                         ],
@@ -297,16 +347,9 @@ class _NewsCreatePageState extends ConsumerState<NewsCreatePage> {
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceBright,
-      appBar: AppBar(
-        toolbarHeight: 80,
-        backgroundColor: theme.colorScheme.surfaceBright,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
-          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-        ),
-        centerTitle: false,
-        title: const HeadlineSmallEmphasized(text: 'News erstellen'),
+      appBar: CreatePageAppBar(
+        title: 'News erstellen',
+        onClose: () => Navigator.of(context).pop(),
       ),
       body: SafeArea(
         top: false,

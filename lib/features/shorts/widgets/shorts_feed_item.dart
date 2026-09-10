@@ -1,10 +1,10 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jup/features/shorts/controllers/shorts_provider.dart';
 import 'package:jup/features/shorts/models/shorts_model.dart';
 import 'package:jup/features/shorts/services/video_player_pool.dart';
-import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/services/deep_link_service.dart';
 import 'package:jup/shared/widgets/report_bottom_sheet.dart';
 import 'package:jup/shared/widgets/text.dart';
@@ -77,7 +77,9 @@ class _ShortsFeedItemState extends ConsumerState<ShortsFeedItem>
           .incrementViewCount(widget.shortsEntry.documentId);
 
       // Also update the backend
-      ref.read(shortsControllerProvider).incrementViewCount(widget.shortsEntry.documentId);
+      ref
+          .read(shortsControllerProvider)
+          .incrementViewCount(widget.shortsEntry.documentId);
     }
   }
 
@@ -222,67 +224,101 @@ class _ShortsFeedItemState extends ConsumerState<ShortsFeedItem>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: Stack(
-          children: [
-            // Video player layer with RepaintBoundary for performance
-            Positioned.fill(
-              child: _isInitialized && _controller != null
-                  ? GestureDetector(
-                      onTap: _toggleVolume,
-                      child: RepaintBoundary(
-                        child: SizedBox.expand(
-                          child: FittedBox(
-                            fit: BoxFit.cover,
-                            child: SizedBox(
-                              width: _controller!.value.size.width,
-                              height: _controller!.value.size.height,
-                              child: VideoPlayer(_controller!),
+    return MediaQuery.removePadding(
+      context: context,
+      removeTop: true,
+      child: Scaffold(
+        body: SafeArea(
+          top: false,
+          bottom: false,
+          child: Stack(
+            children: [
+              // Video player layer with RepaintBoundary for performance
+              Positioned.fill(
+                child: _isInitialized && _controller != null
+                    ? GestureDetector(
+                        onTap: _toggleVolume,
+                        child: RepaintBoundary(
+                          child: SizedBox.expand(
+                            child: FittedBox(
+                              fit: BoxFit.cover,
+                              child: SizedBox(
+                                width: _controller!.value.size.width,
+                                height: _controller!.value.size.height,
+                                child: VideoPlayer(_controller!),
+                              ),
                             ),
                           ),
                         ),
+                      )
+                    : Center(
+                        child: CircularProgressIndicator(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
-                    )
-                  : Center(
-                      child: CircularProgressIndicator(
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-            ),
-            // Top gradient
-            const _TopGradient(),
-            // Bottom gradient with text
-            _BottomSection(
-              title: widget.shortsEntry.title,
-              viewCount: _displayViewCount,
-            ),
-            // Share and Report buttons
-            _ActionButtons(
-              shortsEntry: widget.shortsEntry,
-              deepLinkService: _deepLinkService,
-            ),
-            // Volume feedback icon with animation (no setState)
-            _VolumeIconOverlay(
-              animation: _volumeIconOpacity,
-              isMuted: _lastKnownMuteState,
-            ),
-            // Close button
-            Positioned(
-              left: 0,
-              top: 40 + MediaQuery.viewPaddingOf(context).top,
-              child: IconButton(
-                icon: const Icon(
-                  Icons.arrow_back,
-                  color: Colors.white,
-                  size: 24,
-                ).withPadding(16, 16, 16, 16),
-                onPressed: () => Navigator.of(context).pop(),
               ),
-            ),
-          ],
+              // Top gradient
+              const _TopGradient(),
+              // Bottom gradient with text
+              _BottomSection(
+                title: widget.shortsEntry.title,
+                viewCount: _displayViewCount,
+              ),
+              // Volume feedback icon with animation (no setState)
+              _VolumeIconOverlay(
+                animation: _volumeIconOpacity,
+                isMuted: _lastKnownMuteState,
+              ),
+              // Top bar: back (left) + share/report (right) in one row,
+              // so back and share are guaranteed to share the same top edge.
+              Positioned(
+                left: 8,
+                right: 8,
+                // Sit just below the status bar / Dynamic Island: the real top
+                // inset plus a small gap. viewPaddingOf reads the true inset
+                // here — this context is above the removeTop MediaQuery below.
+                top: 8 + MediaQuery.viewPaddingOf(context).top,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _BackdropIconButton(
+                      icon: Icons.arrow_back,
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _BackdropIconButton(
+                          icon: Platform.isIOS ? Icons.ios_share : Icons.share,
+                          onPressed: () async {
+                            final deepLink =
+                                _deepLinkService.generateShortsLink(
+                              widget.shortsEntry.documentId,
+                            );
+                            await SharePlus.instance
+                                .share(ShareParams(text: deepLink));
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        _BackdropIconButton(
+                          icon: Icons.flag_outlined,
+                          onPressed: () {
+                            ReportBottomSheet.show(
+                              context,
+                              contentType: ReportContentType.short,
+                              contentId: widget.shortsEntry.documentId,
+                              contentPreview: widget.shortsEntry.title,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -360,7 +396,7 @@ class _BottomSection extends StatelessWidget {
               ),
             const SizedBox(height: 8),
             BodySmall(
-              text: '$viewCount mal angesehen',
+              text: '$viewCount Mal angesehen',
               color: Colors.white70,
             ),
           ],
@@ -370,52 +406,27 @@ class _BottomSection extends StatelessWidget {
   }
 }
 
-/// Action buttons (share, report) - extracted to prevent rebuilds
-class _ActionButtons extends StatelessWidget {
-  final ShortsEntry shortsEntry;
-  final DeepLinkService deepLinkService;
+/// Black-circle backdrop around a white icon — pattern from
+/// `DetailPageSliverAppBar` and `FullScreenImageViewer`.
+class _BackdropIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
 
-  const _ActionButtons({
-    required this.shortsEntry,
-    required this.deepLinkService,
+  const _BackdropIconButton({
+    required this.icon,
+    required this.onPressed,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      right: 0,
-      top: 40 + MediaQuery.viewPaddingOf(context).top,
-      child: Column(
-        children: [
-          IconButton(
-            icon: Icon(
-              Platform.isIOS ? Icons.ios_share : Icons.share,
-              color: Colors.white,
-              size: 24,
-            ).withPadding(16, 16, 16, 16),
-            onPressed: () async {
-              final deepLink = deepLinkService.generateShortsLink(
-                shortsEntry.documentId,
-              );
-              await SharePlus.instance.share(ShareParams(text: deepLink));
-            },
-          ),
-          IconButton(
-            icon: const Icon(
-              Icons.flag_outlined,
-              color: Colors.white,
-              size: 24,
-            ).withPadding(16, 16, 16, 16),
-            onPressed: () {
-              ReportBottomSheet.show(
-                context,
-                contentType: ReportContentType.short,
-                contentId: shortsEntry.documentId,
-                contentPreview: shortsEntry.title,
-              );
-            },
-          ),
-        ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: Colors.white),
+        onPressed: onPressed,
       ),
     );
   }

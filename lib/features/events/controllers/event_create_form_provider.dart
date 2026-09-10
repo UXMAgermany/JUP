@@ -8,6 +8,10 @@ import 'package:jup/shared/models/pending_content_block.dart';
 /// State über alle vier Wizard-Schritte hinweg. `_unset`-Sentinel im copyWith
 /// erlaubt explizites Setzen von Nullable-Feldern zurück auf null.
 class EventCreateFormState {
+  // Step Scope (optional, abhängig von User-Rolle)
+  final String? scopeGroupDocumentId;
+  final bool scopeSelected;
+
   // Step 1
   final EventCategory? category;
 
@@ -20,6 +24,8 @@ class EventCreateFormState {
   final String location;
   final DateTime? startDate;
   final TimeOfDay? startTime;
+  final bool signupClosesAtEnabled;
+  final DateTime? signupClosesAt;
   final bool repeatsEnabled;
   final EventRepeatType? repeats;
 
@@ -32,6 +38,8 @@ class EventCreateFormState {
   final DateTime? expiresAt;
 
   const EventCreateFormState({
+    this.scopeGroupDocumentId,
+    this.scopeSelected = false,
     this.category,
     this.heroImage,
     this.title = '',
@@ -39,6 +47,8 @@ class EventCreateFormState {
     this.location = '',
     this.startDate,
     this.startTime,
+    this.signupClosesAtEnabled = false,
+    this.signupClosesAt,
     this.repeatsEnabled = false,
     this.repeats,
     this.leadText = '',
@@ -49,6 +59,8 @@ class EventCreateFormState {
     this.expiresAt,
   });
 
+  bool get isScopeStepValid => scopeSelected;
+
   bool get isStep1Valid => category != null;
 
   bool get isStep2Valid => title.trim().isNotEmpty;
@@ -57,7 +69,14 @@ class EventCreateFormState {
     if (location.trim().isEmpty) return false;
     if (startDate == null || startTime == null) return false;
     if (repeatsEnabled && repeats == null) return false;
+    if (expiresAtEnabled && !repeatsEnabled) return false;
     if (expiresAtEnabled && expiresAt == null) return false;
+    if (signupClosesAtEnabled && signupClosesAt == null) return false;
+    if (signupClosesAtEnabled &&
+        startDate != null &&
+        signupClosesAt!.isAfter(startDate!)) {
+      return false;
+    }
     return true;
   }
 
@@ -75,6 +94,8 @@ class EventCreateFormState {
   }
 
   EventCreateFormState copyWith({
+    Object? scopeGroupDocumentId = _unset,
+    bool? scopeSelected,
     EventCategory? category,
     Object? heroImage = _unset,
     String? title,
@@ -82,6 +103,8 @@ class EventCreateFormState {
     String? location,
     Object? startDate = _unset,
     Object? startTime = _unset,
+    bool? signupClosesAtEnabled,
+    Object? signupClosesAt = _unset,
     bool? repeatsEnabled,
     Object? repeats = _unset,
     String? leadText,
@@ -92,6 +115,10 @@ class EventCreateFormState {
     Object? expiresAt = _unset,
   }) {
     return EventCreateFormState(
+      scopeGroupDocumentId: identical(scopeGroupDocumentId, _unset)
+          ? this.scopeGroupDocumentId
+          : scopeGroupDocumentId as String?,
+      scopeSelected: scopeSelected ?? this.scopeSelected,
       category: category ?? this.category,
       heroImage: identical(heroImage, _unset)
           ? this.heroImage
@@ -105,6 +132,11 @@ class EventCreateFormState {
       startTime: identical(startTime, _unset)
           ? this.startTime
           : startTime as TimeOfDay?,
+      signupClosesAtEnabled:
+          signupClosesAtEnabled ?? this.signupClosesAtEnabled,
+      signupClosesAt: identical(signupClosesAt, _unset)
+          ? this.signupClosesAt
+          : signupClosesAt as DateTime?,
       repeatsEnabled: repeatsEnabled ?? this.repeatsEnabled,
       repeats: identical(repeats, _unset)
           ? this.repeats
@@ -128,6 +160,15 @@ const Object _unset = Object();
 class EventCreateFormController extends StateNotifier<EventCreateFormState> {
   EventCreateFormController() : super(const EventCreateFormState());
 
+  /// Setzt die Zielgruppe und markiert den Scope-Step als bewusst durchlaufen.
+  /// `null` entspricht „Alle" (global).
+  void setScope(String? groupDocumentId) {
+    state = state.copyWith(
+      scopeGroupDocumentId: groupDocumentId,
+      scopeSelected: true,
+    );
+  }
+
   // Step 1
   void setCategory(EventCategory category) =>
       state = state.copyWith(category: category);
@@ -150,13 +191,32 @@ class EventCreateFormController extends StateNotifier<EventCreateFormState> {
 
   void setStartTime(TimeOfDay time) => state = state.copyWith(startTime: time);
 
+  /// Aktiviert/deaktiviert das optionale Anmeldeschluss-Datum. Beim
+  /// Deaktivieren wird der Wert verworfen.
+  void setSignupClosesAtEnabled(bool enabled) {
+    state = state.copyWith(
+      signupClosesAtEnabled: enabled,
+      signupClosesAt: enabled ? state.signupClosesAt : null,
+    );
+  }
+
+  void setSignupClosesAt(DateTime date) {
+    state = state.copyWith(
+      signupClosesAt: DateTime(date.year, date.month, date.day),
+    );
+  }
+
   /// Aktiviert/deaktiviert die Wiederholungs-Auswahl. Beim Aktivieren wird
   /// ein sinnvoller Default (`weekly`) gesetzt, damit der SegmentedButton
-  /// direkt eine Auswahl zeigt. Beim Deaktivieren wird der Wert verworfen.
+  /// direkt eine Auswahl zeigt. Beim Deaktivieren wird der Wert verworfen;
+  /// gleichzeitig wird das Serien-Enddatum (`expiresAt`) gelöscht, da es
+  /// semantisch nur für wiederkehrende Events gilt.
   void setRepeatsEnabled(bool enabled) {
     state = state.copyWith(
       repeatsEnabled: enabled,
       repeats: enabled ? (state.repeats ?? EventRepeatType.weekly) : null,
+      expiresAtEnabled: enabled ? state.expiresAtEnabled : false,
+      expiresAt: enabled ? state.expiresAt : null,
     );
   }
 

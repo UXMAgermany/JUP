@@ -1,20 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:jup/features/surveys/controllers/survey_create_form_provider.dart';
-import 'package:jup/features/surveys/controllers/surveys_controller.dart';
 import 'package:jup/features/surveys/controllers/surveys_provider.dart';
 import 'package:jup/features/surveys/models/survey_model.dart';
 import 'package:jup/shared/services/api_client.dart';
 
-/// Submit-State-Notifier für den Survey-Create-Wizard. Lädt optional ein
-/// Hero-Bild hoch, mappt den FormState auf [SurveyCreateInput] und ruft
-/// den CMS-Controller. Nach Erfolg wird die Surveys-Liste invalidiert,
-/// damit der neue Eintrag sofort sichtbar ist.
+/// Submit-State-Notifier für den Survey-Create-Wizard.
+///
+/// Schickt einen einzigen Multipart-Request an `POST /api/surveys/atomic`:
+/// das `data`-JSON enthält Titel, Typ, Optionen etc., das optionale Hero-Bild
+/// hängt als `heroImage`-File. Das CMS lädt das Bild hoch und erstellt die
+/// Umfrage in einer Aktion — schlägt der Create-Schritt fehl, wird das
+/// hochgeladene Bild wieder entfernt, sodass keine Orphan-Files entstehen.
 class SurveyCreateNotifier extends StateNotifier<AsyncValue<SurveyEntry?>> {
-  SurveyCreateNotifier(this._controller, this._client, this._ref)
+  SurveyCreateNotifier(this._client, this._ref)
     : super(const AsyncValue.data(null));
 
-  final SurveysController _controller;
   final StrapiClient _client;
   final Ref _ref;
 
@@ -23,24 +24,51 @@ class SurveyCreateNotifier extends StateNotifier<AsyncValue<SurveyEntry?>> {
     assert(form.expiresAt != null, 'submit called before expiresAt was set');
     state = const AsyncValue.loading();
     try {
-      int? heroMediaId;
-      if (form.heroImage != null) {
-        heroMediaId = await _client.uploadFile(form.heroImage!.path);
+      final type = form.type!;
+      final expiresAt = form.expiresAt!;
+      final data = <String, dynamic>{
+        'title': form.title.trim(),
+        'type': switch (type) {
+          SurveyType.yesNo => 'yes-no',
+          SurveyType.election => 'election',
+          SurveyType.multiple => 'multiple',
+        },
+        'expiresAt':
+            '${expiresAt.year.toString().padLeft(4, '0')}-'
+            '${expiresAt.month.toString().padLeft(2, '0')}-'
+            '${expiresAt.day.toString().padLeft(2, '0')}',
+        'maxVotes': type == SurveyType.yesNo ? 1 : form.maxVotes,
+        'allowCustomOptions':
+            type == SurveyType.multiple && (form.allowCustomOptions ?? false),
+      };
+
+      final subTitle = form.subTitle.trim();
+      if (subTitle.isNotEmpty) {
+        data['subTitle'] = subTitle;
+      }
+      if (form.publishLater && form.publishAt != null) {
+        data['publishAt'] = form.publishAt!.toUtc().toIso8601String();
+      }
+      if (form.scopeGroupDocumentId != null) {
+        data['group'] = form.scopeGroupDocumentId;
+      }
+      if (type == SurveyType.multiple || type == SurveyType.election) {
+        final nonEmpty = form.options
+            .map((t) => t.trim())
+            .where((t) => t.isNotEmpty)
+            .map((t) => {'text': t})
+            .toList();
+        if (nonEmpty.isNotEmpty) {
+          data['options'] = nonEmpty;
+        }
       }
 
-      final input = SurveyCreateInput(
-        title: form.title.trim(),
-        subTitle: form.subTitle.trim().isEmpty ? null : form.subTitle.trim(),
-        imageMediaId: heroMediaId,
-        type: form.type!,
-        expiresAt: form.expiresAt!,
-        publishAt: form.publishLater ? form.publishAt : null,
-        maxVotes: form.type == SurveyType.yesNo ? 1 : form.maxVotes,
-        allowCustomOptions: form.allowCustomOptions ?? false,
-        optionTexts: form.options,
+      final responseData = await _client.postMultipartWithMedia(
+        '/api/surveys/atomic',
+        data: data,
+        heroImage: form.heroImage,
       );
-
-      final entry = await _controller.createSurvey(input);
+      final entry = SurveyEntry.fromJson(responseData, _client.baseUrl);
       state = AsyncValue.data(entry);
       await _ref.read(surveysListProvider.notifier).refresh();
       return entry;
@@ -59,9 +87,5 @@ final surveyCreateProvider =
     StateNotifierProvider<SurveyCreateNotifier, AsyncValue<SurveyEntry?>>((
       ref,
     ) {
-      return SurveyCreateNotifier(
-        ref.watch(surveysControllerProvider),
-        ref.watch(strapiClientProvider),
-        ref,
-      );
+      return SurveyCreateNotifier(ref.watch(strapiClientProvider), ref);
     });

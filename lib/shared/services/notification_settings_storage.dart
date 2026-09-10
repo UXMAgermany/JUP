@@ -54,6 +54,23 @@ class NotificationSettingsStorage {
     await saveSettings(settings.copyWith(permissionGranted: granted));
   }
 
+  // "Meine Gruppen" preferences — persisted locally and synced to the backend
+  // by the provider (the server enforces delivery for group-scoped pushes).
+  Future<void> setGroupNewsEnabled(bool enabled) async {
+    final settings = await getSettings();
+    await saveSettings(settings.copyWith(groupNewsEnabled: enabled));
+  }
+
+  Future<void> setGroupEventsEnabled(bool enabled) async {
+    final settings = await getSettings();
+    await saveSettings(settings.copyWith(groupEventsEnabled: enabled));
+  }
+
+  Future<void> setGroupSurveysEnabled(bool enabled) async {
+    final settings = await getSettings();
+    await saveSettings(settings.copyWith(groupSurveysEnabled: enabled));
+  }
+
   // FCM token management
   Future<String?> getFcmToken() async {
     return _prefs.getString(_fcmTokenKey);

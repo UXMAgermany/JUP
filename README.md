@@ -21,7 +21,8 @@ JUP! is a community engagement platform designed for young people in Süderbraru
 - **Help** - Browse local help offerings and frequently asked questions (FAQs)
 - **Profile** - Customise your avatar and manage your account
 - **Push Notifications** - Stay informed about new events, surveys, and accepted survey contributions
-- **Content Reporting** - Report inappropriate content on comments and shorts
+- **Content Reporting** - Report inappropriate content on comments and shorts.
+- **Achievements** - Earn badges across 7 tiers through app activity and QR-code check-ins at youth plaza spots, with curated leaderboards
 
 ## 🏗️ Architecture
 
@@ -40,14 +41,19 @@ JUP! is a community engagement platform designed for young people in Süderbraru
 ```
 lib/
 ├── features/              # Feature modules
+│   ├── achievements/     # Badges, leaderboards & QR check-ins
 │   ├── auth/             # Authentication & user management
 │   ├── content/          # Static content (FAQs, Markdown screens)
 │   ├── events/           # Event browsing and participation
 │   ├── files/            # File downloads (e.g. WiFi password)
+│   ├── profile/          # User profile and avatar
+│   ├── shorts/           # Short videos
+│   └── surveys/          # Surveys and polls
 │   ├── news/             # News articles
 │   ├── profile/          # User profile and avatar
 │   ├── shorts/           # Short videos
 │   └── surveys/          # Surveys and polls
+│   └── shorts/           # Short videos
 ├── router/               # AutoRoute navigation configuration
 ├── shared/               # Shared utilities and widgets
 │   ├── controllers/      # Session management, API config
@@ -65,8 +71,8 @@ test/                     # Test suite
 
 ### Prerequisites
 
-- Flutter SDK 3.9.0 or higher
-- Dart SDK 3.9.0 or higher
+- Flutter SDK 3.44 or higher
+- Dart SDK 3.12 or higher
 - iOS: Xcode 14+ with iOS Simulator
 - Android: Android Studio with Android SDK
 - Node.js (for version bumping)
@@ -273,6 +279,31 @@ flutter build apk --release      # APK
 flutter build appbundle --release # App Bundle (recommended)
 ```
 
+## 🤖 CI/CD
+
+The pipeline is defined in `.gitlab-ci.yml` (GitLab CI) with stages `lint → test → package → beta_deployment`.
+
+### Flutter version pinning
+
+The required Flutter version lives in one place: the `FLUTTER_PIN` variable. Both lanes must run exactly that version, because `flutter pub get --enforce-lockfile` fails against any SDK that pins `meta`/`vector_math` differently than `pubspec.lock`.
+
+- **iOS** (self-hosted macOS runner): a guard aborts the job unless the runner already reports `FLUTTER_PIN`. Installing that version on the runner is an ops task.
+- **Android** (Docker, `ghcr.io/cirruslabs/flutter`): cirruslabs ships no image newer than 3.44.0, so the image is kept only for its Android SDK/JDK and the bundled Flutter is checked out to `FLUTTER_PIN` in-job.
+
+When bumping Flutter, `FLUTTER_PIN`, `pubspec.lock` (re-resolved with the new SDK) and the iOS runner's SDK all move together.
+
+### Required CI/CD variable: `GH_TOKEN`
+
+The Android in-job checkout runs `git fetch` against `github.com/flutter/flutter`. GitHub throttles unauthenticated downloads from shared runner IPs ("GitHub is temporarily limiting some unauthenticated downloads"), so the fetch is authenticated when `GH_TOKEN` is set.
+
+Set it up under **Settings → CI/CD → Variables**:
+
+- **Key:** `GH_TOKEN` (name must match exactly)
+- **Value:** a GitHub Personal Access Token — **no scopes needed** (flutter/flutter is public; the token only lifts the anonymous rate limit). Prefer a team/bot GitHub account and mind the token's expiry.
+- **Masked:** yes. **Protected:** only if the branch is protected — a protected variable is empty on non-protected branches, and the fetch then fails despite the token.
+
+Without a valid `GH_TOKEN`, Android jobs may fail at the Flutter fetch under GitHub throttling.
+
 ## 🎨 Design System
 
 The app uses Material Design 3 with custom typography:
@@ -296,7 +327,7 @@ dart run build_runner clean
 rm -rf .dart_tool
 flutter clean
 flutter pub get
-dart run build_runner build --delete-conflicting-outputs
+dart run build_runner build
 ```
 
 ### Hot Reload Not Working

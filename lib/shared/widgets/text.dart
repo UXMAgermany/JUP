@@ -249,13 +249,23 @@ class BodySmall extends StatelessWidget {
 
 // Label
 class LabelLarge extends StatelessWidget {
-  const LabelLarge({super.key, required this.text, this.color});
+  const LabelLarge({
+    super.key,
+    required this.text,
+    this.color,
+    this.overflow,
+    this.maxLines,
+  });
   final String text;
   final Color? color;
+  final TextOverflow? overflow;
+  final int? maxLines;
   @override
   Widget build(BuildContext context) {
     return Text(
       text,
+      overflow: overflow,
+      maxLines: maxLines,
       style: Theme.of(context).textTheme.labelLarge?.copyWith(color: color),
     );
   }

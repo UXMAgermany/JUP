@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:jup/shared/widgets/pattern_aware_scaffold.dart';
 import 'package:jup/shared/widgets/sub_page_app_bar.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
@@ -11,7 +12,7 @@ class ProfileSettingsAboutPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PatternAwareScaffold(
       appBar: SubPageAppBar(titleText: "Hilfe und Feedback"),
       body: SafeArea(
         child: ListView(
@@ -26,7 +27,7 @@ class ProfileSettingsAboutPage extends StatelessWidget {
                 children: [
                   GestureDetector(
                     onTap: () {
-                      context.router.push(const ImprintRoute());
+                      context.router.root.push(const ImprintRoute());
                     },
                     child: BodyLarge(
                       text: "Impressum",
@@ -35,7 +36,7 @@ class ProfileSettingsAboutPage extends StatelessWidget {
                   Divider(height: 1).withPaddingY(8),
                   GestureDetector(
                     onTap: () {
-                      context.router.push(const PrivacyRoute());
+                      context.router.root.push(const PrivacyRoute());
                     },
                     child: BodyLarge(
                       text: "Datenschutz",
@@ -44,7 +45,7 @@ class ProfileSettingsAboutPage extends StatelessWidget {
                   Divider(height: 1).withPaddingY(8),
                   GestureDetector(
                     onTap: () {
-                      context.router.push(const TermsRoute());
+                      context.router.root.push(const TermsRoute());
                     },
                     child: BodyLarge(
                       text: "Nutzungsbedingungen",
@@ -53,7 +54,7 @@ class ProfileSettingsAboutPage extends StatelessWidget {
                   Divider(height: 1).withPaddingY(8),
                   GestureDetector(
                     onTap: () {
-                      context.router.push(const CodeOfConductRoute());
+                      context.router.root.push(const CodeOfConductRoute());
                     },
                     child: BodyLarge(
                       text: "Verhaltenskodex",

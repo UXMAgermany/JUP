@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jup/features/files/models/file_model.dart';
 import 'package:jup/features/shorts/models/shorts_model.dart';
 import 'package:jup/features/shorts/widgets/shorts_card.dart';
-import 'package:jup/features/files/models/file_model.dart';
 
 void main() {
   group('ShortsCard Widget Tests', () {
@@ -47,7 +47,7 @@ void main() {
 
       // Title appears once below the video frame
       expect(find.text('Test Short'), findsOneWidget);
-      expect(find.text('42 mal angesehen'), findsOneWidget);
+      expect(find.text('42 Mal angesehen'), findsOneWidget);
     });
 
     testWidgets('should display view count of 0', (WidgetTester tester) async {
@@ -63,7 +63,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('0 mal angesehen'), findsOneWidget);
+      expect(find.text('0 Mal angesehen'), findsOneWidget);
     });
 
     testWidgets('should have correct aspect ratio', (
@@ -131,7 +131,7 @@ void main() {
       await tester.pump();
 
       // Should not crash
-      expect(find.text('42 mal angesehen'), findsOneWidget);
+      expect(find.text('42 Mal angesehen'), findsOneWidget);
     });
 
     testWidgets('should show placeholder initially', (
@@ -185,7 +185,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('1000000 mal angesehen'), findsOneWidget);
+      expect(find.text('1000000 Mal angesehen'), findsOneWidget);
     });
 
     testWidgets('should handle long titles', (WidgetTester tester) async {

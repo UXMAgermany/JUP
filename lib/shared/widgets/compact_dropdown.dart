@@ -41,27 +41,38 @@ class _CompactDropdownState<T> extends State<CompactDropdown<T>> {
       onClose: () => setState(() => _isOpen = false),
       style: const MenuStyle(minimumSize: WidgetStatePropertyAll(Size(160, 0))),
       builder: (context, controller, child) {
-        return InkWell(
-          borderRadius: BorderRadius.circular(4),
-          onTap: () {
-            if (_menuController.isOpen) {
-              _menuController.close();
-            } else {
-              _menuController.open();
-            }
-          },
-          child: InputDecorator(
-            isEmpty: !hasSelection,
-            isFocused: _isOpen,
-            decoration: InputDecoration(
-              labelText: widget.label,
-              suffixIcon: Icon(
-                _isOpen ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+        // VoiceOver/TalkBack: ohne expliziten Wrapper bleibt der InkWell+
+        // InputDecorator-Composite stumm — der Reader liest nur den Label-
+        // Text, ohne das Steuerelement als Button anzukündigen.
+        final semanticsLabel = hasSelection
+            ? '${widget.label}: $buttonText, antippen zum Ändern'
+            : '${widget.label}, antippen zum Auswählen';
+        return Semantics(
+          button: true,
+          label: semanticsLabel,
+          excludeSemantics: true,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(4),
+            onTap: () {
+              if (_menuController.isOpen) {
+                _menuController.close();
+              } else {
+                _menuController.open();
+              }
+            },
+            child: InputDecorator(
+              isEmpty: !hasSelection,
+              isFocused: _isOpen,
+              decoration: InputDecoration(
+                labelText: widget.label,
+                suffixIcon: Icon(
+                  _isOpen ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                ),
               ),
-            ),
-            child: Text(
-              hasSelection ? buttonText : '',
-              style: theme.textTheme.bodyLarge,
+              child: Text(
+                hasSelection ? buttonText : '',
+                style: theme.textTheme.bodyLarge,
+              ),
             ),
           ),
         );

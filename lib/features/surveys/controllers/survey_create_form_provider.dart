@@ -7,6 +7,18 @@ import 'package:jup/features/surveys/models/survey_model.dart';
 /// im copyWith erlaubt explizites Zurücksetzen von Nullable-Feldern
 /// auf null (z.B. publishAt beim Deaktivieren der Toggle).
 class SurveyCreateFormState {
+  // Step Scope (optional, abhängig von User-Rolle)
+  /// `documentId` der Zielgruppe, oder `null` für globale Veröffentlichung.
+  /// Wird nur dann am Backend mitgesendet, wenn ein konkreter Wert gesetzt
+  /// ist; bei `null` schreibt das CMS das Feld nicht und der Beitrag bleibt
+  /// global.
+  final String? scopeGroupDocumentId;
+
+  /// Wurde der Scope-Step bewusst durchlaufen (Tap oder Auto-Skip)?
+  /// Trennt „noch nicht entschieden" von „bewusst global gewählt", weil
+  /// `scopeGroupDocumentId=null` beides bedeuten kann.
+  final bool scopeSelected;
+
   // Step 1
   final SurveyType? type;
 
@@ -32,6 +44,8 @@ class SurveyCreateFormState {
   final DateTime? publishAt;
 
   const SurveyCreateFormState({
+    this.scopeGroupDocumentId,
+    this.scopeSelected = false,
     this.type,
     this.allowCustomOptions,
     this.heroImage,
@@ -43,6 +57,8 @@ class SurveyCreateFormState {
     this.publishLater = false,
     this.publishAt,
   });
+
+  bool get isScopeStepValid => scopeSelected;
 
   bool get isStep1Valid => type != null;
 
@@ -80,6 +96,8 @@ class SurveyCreateFormState {
   }
 
   SurveyCreateFormState copyWith({
+    Object? scopeGroupDocumentId = _unset,
+    bool? scopeSelected,
     Object? type = _unset,
     Object? allowCustomOptions = _unset,
     Object? heroImage = _unset,
@@ -92,6 +110,10 @@ class SurveyCreateFormState {
     Object? publishAt = _unset,
   }) {
     return SurveyCreateFormState(
+      scopeGroupDocumentId: identical(scopeGroupDocumentId, _unset)
+          ? this.scopeGroupDocumentId
+          : scopeGroupDocumentId as String?,
+      scopeSelected: scopeSelected ?? this.scopeSelected,
       type: identical(type, _unset) ? this.type : type as SurveyType?,
       allowCustomOptions: identical(allowCustomOptions, _unset)
           ? this.allowCustomOptions
@@ -118,6 +140,17 @@ const Object _unset = Object();
 
 class SurveyCreateFormController extends StateNotifier<SurveyCreateFormState> {
   SurveyCreateFormController() : super(const SurveyCreateFormState());
+
+  // Step Scope
+  /// Setzt die Zielgruppe und markiert den Scope-Step als bewusst durchlaufen.
+  /// `null` entspricht „Alle" (global). Wird sowohl beim User-Tap als auch
+  /// beim Auto-Skip (JUZ-Admin ohne Admin-Gruppen) aufgerufen.
+  void setScope(String? groupDocumentId) {
+    state = state.copyWith(
+      scopeGroupDocumentId: groupDocumentId,
+      scopeSelected: true,
+    );
+  }
 
   // Step 1
   /// Beim Wechsel des Typs werden modus-/optionen-spezifische Felder

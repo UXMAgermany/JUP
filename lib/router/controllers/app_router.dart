@@ -1,17 +1,19 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jup/features/auth/controllers/auth_guard.dart';
+import 'package:jup/features/auth/controllers/content_create_guard.dart';
 import 'package:jup/features/events/controllers/events_auth_guard.dart';
 import 'package:jup/features/news/controllers/news_auth_guard.dart';
 import 'package:jup/features/surveys/controllers/surveys_auth_guard.dart';
-import 'package:jup/router/controllers/app_router.gr.dart';
 import 'package:jup/shared/controllers/shared_prefs_provider.dart';
+import 'package:jup/router/controllers/app_router.gr.dart';
 
 @AutoRouterConfig()
 class AppRouter extends RootStackRouter {
   final SharedPreferenceProvider sharedPreferenceProvider;
   final WidgetRef ref;
   late final AuthGuard _authGuard;
+  late final ContentCreateGuard _contentCreateGuard;
   late final NewsAuthGuard _newsAuthGuard;
   late final EventsAuthGuard _eventsAuthGuard;
   late final SurveysAuthGuard _surveysAuthGuard;
@@ -22,10 +24,12 @@ class AppRouter extends RootStackRouter {
     required this.ref,
   }) {
     _authGuard = AuthGuard(ref);
+    _contentCreateGuard = ContentCreateGuard(ref);
     _newsAuthGuard = NewsAuthGuard(ref);
     _eventsAuthGuard = EventsAuthGuard(ref);
     _surveysAuthGuard = SurveysAuthGuard(ref);
   }
+
 
   @override
   RouteType get defaultRouteType => const RouteType.cupertino();
@@ -34,6 +38,16 @@ class AppRouter extends RootStackRouter {
   List<AutoRoute> get routes => [
         // Standalone route for handling deep link notifications
         AutoRoute(page: NotificationDetailHandlerRoute.page),
+        // Auth-Flow als Top-Level-Routen — überlagern MainPage vollflächig
+        AutoRoute(page: LoginRoute.page),
+        AutoRoute(page: RegisterRoute.page),
+        AutoRoute(page: RegisterSuccessRoute.page),
+        AutoRoute(page: VerificationRoute.page),
+        // Statische Content-Routes auf Top-Level — erreichbar aus Auth-Flow und Profile-Tab
+        AutoRoute(page: CodeOfConductRoute.page),
+        AutoRoute(page: PrivacyRoute.page),
+        AutoRoute(page: ImprintRoute.page),
+        AutoRoute(page: TermsRoute.page),
         AutoRoute(
           page: MainRoute.page,
           initial: true,
@@ -51,7 +65,7 @@ class AppRouter extends RootStackRouter {
                 AutoRoute(page: ShortsFeedRoute.page),
                 AutoRoute(
                   page: NewsCreateRoute.page,
-                  guards: [_authGuard],
+                  guards: [_authGuard, _contentCreateGuard],
                 ),
               ],
             ),
@@ -67,7 +81,7 @@ class AppRouter extends RootStackRouter {
                 AutoRoute(page: EventDetailRoute.page),
                 AutoRoute(
                   page: EventCreateRoute.page,
-                  guards: [_authGuard],
+                  guards: [_authGuard, _contentCreateGuard],
                 ),
               ],
             ),
@@ -82,6 +96,40 @@ class AppRouter extends RootStackRouter {
                 ),
                 AutoRoute(
                   page: SurveyCreateRoute.page,
+                  guards: [_authGuard, _contentCreateGuard],
+                ),
+              ],
+            ),
+            AutoRoute(
+              page: AchievementsNavigationRoute.page,
+              children: [
+                // Kein Auth-Guard: ausgeloggt sind die Screens sichtbar
+                // (locked/„0 von 7"), Gating passiert in-Screen via Login-Karte.
+                AutoRoute(page: AchievementsLandingRoute.page, initial: true),
+                AutoRoute(page: BadgesRoute.page),
+                AutoRoute(page: BadgeDetailRoute.page),
+                AutoRoute(page: LeaderboardsRoute.page),
+                AutoRoute(page: QrScannerRoute.page),
+              ],
+            ),
+            AutoRoute(
+              page: GroupsNavigationRoute.page,
+              children: [
+                AutoRoute(
+                  page: GroupsOverviewRoute.page,
+                  initial: true,
+                ),
+                AutoRoute(page: GroupDetailRoute.page),
+                AutoRoute(
+                  page: GroupSettingsRoute.page,
+                  guards: [_authGuard],
+                ),
+                AutoRoute(
+                  page: GroupCreateRoute.page,
+                  guards: [_authGuard],
+                ),
+                AutoRoute(
+                  page: GroupEditRoute.page,
                   guards: [_authGuard],
                 ),
               ],
@@ -90,14 +138,6 @@ class AppRouter extends RootStackRouter {
               page: ProfileNavigationRoute.page,
               children: [
                 AutoRoute(page: AuthRoute.page),
-                AutoRoute(page: RegisterRoute.page),
-                AutoRoute(page: RegisterSuccessRoute.page),
-                AutoRoute(page: LoginRoute.page),
-                AutoRoute(page: VerificationRoute.page),
-                AutoRoute(page: CodeOfConductRoute.page),
-                AutoRoute(page: PrivacyRoute.page),
-                AutoRoute(page: ImprintRoute.page),
-                AutoRoute(page: TermsRoute.page),
                 AutoRoute(
                   page: ProfileRoute.page,
                   initial: true,

@@ -1,6 +1,8 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:jup/shared/extensions/snackbar_extension.dart';
+import 'package:jup/shared/widgets/pattern_aware_scaffold.dart';
 import 'package:jup/shared/widgets/sub_page_app_bar.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/widgets/text.dart';
@@ -16,17 +18,15 @@ class ProfileSettingsAddressPage extends StatelessWidget {
       await launchUrl(emailUri);
     } else {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Mailprogramm konnte nicht geöffnet werden.')),
-        );
+        context.showAppSnackbar('Mailprogramm konnte nicht geöffnet werden.');
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: SubPageAppBar(titleText: "Adressen", centerTitle: true),
+    return PatternAwareScaffold(
+      appBar: SubPageAppBar(titleText: "Adressen"),
       body: SafeArea(
         child: ListView(
           children: [

@@ -1,18 +1,17 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/features/auth/widgets/forgot_password_sheet.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/services/error_handler.dart';
+import 'package:jup/shared/widgets/pattern_aware_scaffold.dart';
 import 'package:jup/shared/widgets/pop_ups.dart';
+import 'package:jup/shared/widgets/sub_page_app_bar.dart';
 import 'package:jup/shared/widgets/text.dart';
-
-import '../../../router/models/navigation_entry.dart';
-import '../../../router/widgets/main_app_bar.dart';
-import '../../../router/widgets/main_app_drawer.dart';
 
 @RoutePage()
 class LoginPage extends ConsumerStatefulWidget {
@@ -65,7 +64,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     if (authState.isAuthenticated) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.router.replaceAll([const ProfileRoute()]);
+        context.router.replaceAll([const MainRoute()]);
       });
     }
 
@@ -78,6 +77,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       if (formValid) {
         try {
           await authNotifier.login(emailCtrl.text, passwordCtrl.text);
+          // Signalisiert dem System-Passwortmanager (iOS Keychain /
+          // Google Passwortmanager), dass die Zugangsdaten gespeichert
+          // werden dürfen → "Passwort sichern?"-Abfrage.
+          TextInput.finishAutofillContext();
         } catch (e) {
           final errorMessage = ErrorHandler.parseError(e);
 
@@ -109,12 +112,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       }
     }
 
-    return Scaffold(
-      appBar: const MainAppBar(
-        activeTab: NavigationElement.profile,
-        titleOverride: "Einloggen",
-      ),
-      drawer: const MainAppDrawer(),
+    return PatternAwareScaffold(
+      appBar: SubPageAppBar(titleText: "Einloggen"),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -126,99 +125,107 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     children: [
                       Form(
                         key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            TitleSmall(
-                              text: "Dein Zugang zu allem, was Spaß macht.",
-                            ),
-                            SizedBox(height: 16),
-                            TextFormField(
-                              decoration: const InputDecoration(
-                                labelText: 'E-Mail-Adresse',
+                        child: AutofillGroup(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TitleSmall(
+                                text: "Dein Zugang zu allem, was Spaß macht.",
                               ),
-                              validator: (String? value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Was vergessen?';
-                                }
+                              SizedBox(height: 16),
+                              TextFormField(
+                                decoration: const InputDecoration(
+                                  labelText: 'E-Mail-Adresse',
+                                ),
+                                keyboardType: TextInputType.emailAddress,
+                                autofillHints: const [
+                                  AutofillHints.username,
+                                  AutofillHints.email,
+                                ],
+                                validator: (String? value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Was vergessen?';
+                                  }
 
-                                final emailRegex = RegExp(
-                                  r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                                );
-                                if (!emailRegex.hasMatch(value)) {
-                                  return 'Das ist keine gültige Email Adresse.';
-                                }
-                                return null;
-                              },
-                              controller: emailCtrl,
-                              focusNode: _emailFocus,
-                            ),
-                            SizedBox(height: 16),
-                            TextFormField(
-                              obscureText: _obscurePassword,
-                              decoration: InputDecoration(
-                                labelText: 'Passwort (mind. 8 Zeichen)',
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility
-                                        : Icons.visibility_off,
+                                  final emailRegex = RegExp(
+                                    r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                                  );
+                                  if (!emailRegex.hasMatch(value)) {
+                                    return 'Das ist keine gültige Email Adresse.';
+                                  }
+                                  return null;
+                                },
+                                controller: emailCtrl,
+                                focusNode: _emailFocus,
+                              ),
+                              SizedBox(height: 16),
+                              TextFormField(
+                                obscureText: _obscurePassword,
+                                decoration: InputDecoration(
+                                  labelText: 'Passwort (mind. 8 Zeichen)',
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility
+                                          : Icons.visibility_off,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscurePassword = !_obscurePassword;
+                                      });
+                                    },
                                   ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _obscurePassword = !_obscurePassword;
-                                    });
-                                  },
+                                ),
+                                controller: passwordCtrl,
+                                focusNode: _passwordFocus,
+                                autofillHints: const [AutofillHints.password],
+                                validator: (String? value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Was vergessen?';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              SizedBox(height: 16),
+                              Center(
+                                child: Column(
+                                  children: [
+                                    authState.isLoading
+                                        ? const CircularProgressIndicator()
+                                        : SizedBox(
+                                            width: double.infinity,
+                                            child: FilledButton(
+                                              onPressed: onLogin,
+                                              child: const Text('Einloggen'),
+                                            ),
+                                          ),
+                                    if (_loginError != null)
+                                      ErrorText(
+                                        text: _loginError!,
+                                      ).withPaddingTop(16),
+                                    TextButton(
+                                      onPressed: () {
+                                        showModalBottomSheet<void>(
+                                          context: context,
+                                          backgroundColor: Theme.of(
+                                            context,
+                                          ).colorScheme.surfaceContainerLow,
+                                          builder: (_) =>
+                                              const ForgotPasswordSheet(),
+                                        );
+                                      },
+                                      child: TitleSmall(
+                                        text: 'Passwort vergessen?',
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              controller: passwordCtrl,
-                              focusNode: _passwordFocus,
-                              validator: (String? value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Was vergessen?';
-                                }
-                                return null;
-                              },
-                            ),
-                            SizedBox(height: 16),
-                            Center(
-                              child: Column(
-                                children: [
-                                  authState.isLoading
-                                      ? const CircularProgressIndicator()
-                                      : SizedBox(
-                                          width: double.infinity,
-                                          child: FilledButton(
-                                            onPressed: onLogin,
-                                            child: const Text('Einloggen'),
-                                          ),
-                                        ),
-                                  if (_loginError != null)
-                                    ErrorText(
-                                      text: _loginError!,
-                                    ).withPaddingTop(16),
-                                  TextButton(
-                                    onPressed: () {
-                                      showModalBottomSheet<void>(
-                                        context: context,
-                                        backgroundColor: Theme.of(context)
-                                            .colorScheme
-                                            .surfaceContainerLow,
-                                        builder: (_) =>
-                                            const ForgotPasswordSheet(),
-                                      );
-                                    },
-                                    child: TitleSmall(
-                                      text: 'Passwort vergessen?',
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                       const Spacer(), // Push register section to bottom
@@ -230,7 +237,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                 Text('Du hast noch keinen Account?'),
                                 TextButton(
                                   onPressed: () {
-                                    context.router.push(const RegisterRoute());
+                                    context.router.root.push(
+                                      const RegisterRoute(),
+                                    );
                                   },
                                   child: Text('Registrieren'),
                                 ),

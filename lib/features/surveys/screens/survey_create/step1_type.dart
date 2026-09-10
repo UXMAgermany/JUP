@@ -31,7 +31,7 @@ class SurveyCreateStep1Type extends StatelessWidget {
               spacing: 16,
               runSpacing: 16,
               alignment: WrapAlignment.center,
-              runAlignment: WrapAlignment.center,
+              runAlignment: WrapAlignment.start,
               children: [
                 ToggleButton(
                   label: 'Umfrage mit Optionen',

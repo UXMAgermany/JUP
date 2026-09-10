@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:jup/shared/widgets/pattern_aware_scaffold.dart';
 import 'package:jup/shared/widgets/sub_page_app_bar.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
@@ -11,7 +12,7 @@ class ProfileSettingsServicePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PatternAwareScaffold(
       appBar: SubPageAppBar(titleText: "Hilfe und Support"),
       body: SafeArea(
         child: ListView(

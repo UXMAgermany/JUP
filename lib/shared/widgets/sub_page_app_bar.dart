@@ -1,81 +1,65 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jup/shared/controllers/background_provider.dart';
 import 'package:jup/shared/widgets/text.dart';
 
-class SubPageAppBar extends StatelessWidget implements PreferredSizeWidget {
+class SubPageAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final String titleText;
-  final String leadingText;
   final double toolbarHeight;
-  final bool centerTitle;
   final List<Widget>? actions;
   final PreferredSizeWidget? bottom;
+  final Widget? titleSuffix;
 
   const SubPageAppBar({
     super.key,
-    this.titleText = '',
-    this.leadingText = '',
-    this.toolbarHeight = 80,
-    this.centerTitle = true,
+    required this.titleText,
+    this.toolbarHeight = 64,
     this.actions,
     this.bottom,
+    this.titleSuffix,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final brightness = Theme.of(context).brightness;
-    bool isDarkMode = brightness == Brightness.dark;
+    final isDarkMode = brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+    final hasPattern =
+        ref.watch(backgroundProvider).resolve(brightness) != null;
+
     return AppBar(
-      title: null,
       toolbarHeight: toolbarHeight,
-      backgroundColor: Colors.transparent,
+      backgroundColor:
+          hasPattern ? Colors.transparent : colorScheme.surfaceBright,
+      surfaceTintColor: Colors.transparent,
       scrolledUnderElevation: 0,
+      elevation: 0,
       automaticallyImplyLeading: false,
-      flexibleSpace: SafeArea(
-        child: Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerLowest,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    InkWell(
-                      onTap: () => context.router.pop(),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.arrow_back_ios_new,
-                            color: Theme.of(context).colorScheme.primary,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          LabelLarge(
-                            text: leadingText,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ],
-                      ).withPaddingX(16),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: HeadlineSmallEmphasized(text: titleText),
-                      ),
-                    ),
-                    SizedBox(width: 48), // Placeholder for alignment
-                    ...?actions,
-                  ],
-                ),
-              ),
+      titleSpacing: 0,
+      leading: IconButton(
+        tooltip: 'Zurück',
+        icon: Icon(Icons.arrow_back, color: colorScheme.onSurface, size: 24),
+        onPressed: () => context.router.pop(),
+      ),
+      title: Semantics(
+        header: true,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: HeadlineSmallEmphasized(text: titleText, softWrap: false),
+            ),
+            if (titleSuffix != null) ...[
+              const SizedBox(width: 8),
+              titleSuffix!,
             ],
-          ),
+          ],
         ),
       ),
+      centerTitle: false,
+      actions: actions,
       bottom: bottom,
       systemOverlayStyle: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,

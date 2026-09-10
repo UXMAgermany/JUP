@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jup/features/achievements/controllers/achievement_check.dart';
 import 'package:jup/features/surveys/controllers/custom_option_provider.dart';
 import 'package:jup/features/surveys/controllers/surveys_provider.dart';
 import 'package:jup/features/surveys/models/custom_option_model.dart';
@@ -78,6 +79,9 @@ class _CustomOptionSheetState extends ConsumerState<CustomOptionSheet> {
       _textController.clear();
       ref.invalidate(myCustomOptionsProvider(widget.surveyDocumentId));
 
+      if (!mounted) return;
+      await runAchievementCheck(context, ref, keys: ['allgemein.ideenreich']);
+
       if (customOption.status == CustomOptionStatus.approved && mounted) {
         ref.read(surveysListProvider.notifier).refresh();
         Navigator.of(context).pop();
@@ -85,9 +89,8 @@ class _CustomOptionSheetState extends ConsumerState<CustomOptionSheet> {
       }
     } catch (e) {
       setState(
-        () => _error = e is AppException
-            ? e.message
-            : 'Ein Fehler ist aufgetreten.',
+        () => _error =
+            e is AppException ? e.message : 'Ein Fehler ist aufgetreten.',
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -153,12 +156,10 @@ class _CustomOptionSheetState extends ConsumerState<CustomOptionSheet> {
   }
 
   Widget _buildContent(BuildContext context, List<CustomOption> options) {
-    final rejected = options
-        .where((o) => o.status == CustomOptionStatus.rejected)
-        .toList();
-    final pending = options
-        .where((o) => o.status == CustomOptionStatus.pending)
-        .toList();
+    final rejected =
+        options.where((o) => o.status == CustomOptionStatus.rejected).toList();
+    final pending =
+        options.where((o) => o.status == CustomOptionStatus.pending).toList();
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,

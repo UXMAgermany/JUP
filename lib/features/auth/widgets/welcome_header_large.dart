@@ -70,33 +70,20 @@ class WelcomeHeaderLarge extends StatelessWidget {
                   const SizedBox(height: 32),
                   FilledButton(
                     onPressed: () {
-                      context.router.navigate(
-                        const ProfileNavigationRoute(
-                          children: [RegisterRoute()],
-                        ),
-                      );
+                      context.router.root.push(const RegisterRoute());
                     },
                     child: const Text('Registrieren'),
                   ),
                   const SizedBox(height: 8),
                   TextButton(
                     style: TextButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                      foregroundColor: Colors.white,
                       minimumSize: const Size(100, 40),
                     ),
                     onPressed: () {
-                      context.router.navigate(
-                        const ProfileNavigationRoute(
-                          children: [LoginRoute()],
-                        ),
-                      );
+                      context.router.root.push(const LoginRoute());
                     },
-                    child: Text(
-                      'Einloggen',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: Theme.of(context).colorScheme.onPrimary,
-                          ),
-                    ),
+                    child: LabelLarge(text: 'Einloggen', color: Colors.white),
                   ),
                 ],
               ),

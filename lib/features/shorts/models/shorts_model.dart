@@ -1,4 +1,5 @@
 import 'package:jup/features/files/models/file_model.dart';
+import 'package:jup/shared/utils/view_count_formatter.dart';
 
 class ShortsEntry {
   final String documentId;
@@ -7,6 +8,7 @@ class ShortsEntry {
   final int viewCount;
   final DateTime createdAt;
   final DateTime? publishedAt;
+
   /// Scheduled visibility time (custom CMS field). Null for immediate publish.
   /// Used as primary sort key; falls back to createdAt when null.
   final DateTime? publishAt;
@@ -24,7 +26,7 @@ class ShortsEntry {
   String? get videoUrl => video?.url;
 
   /// Effective visibility time used for sorting.
-  DateTime get effectiveDate => publishAt ?? createdAt;
+  DateTime get effectiveDate => publishAt ?? publishedAt ?? createdAt;
 
   factory ShortsEntry.fromJson(Map<String, dynamic> json, String baseUrl) {
     return ShortsEntry(
@@ -54,7 +56,25 @@ class ShortsEntry {
     };
   }
 
-  String getFormattedViewCount() {
-    return '$viewCount mal angesehen';
+  ShortsEntry copyWith({
+    String? documentId,
+    String? title,
+    StrapiFile? video,
+    int? viewCount,
+    DateTime? createdAt,
+    DateTime? publishedAt,
+    DateTime? publishAt,
+  }) {
+    return ShortsEntry(
+      documentId: documentId ?? this.documentId,
+      title: title ?? this.title,
+      video: video ?? this.video,
+      viewCount: viewCount ?? this.viewCount,
+      createdAt: createdAt ?? this.createdAt,
+      publishedAt: publishedAt ?? this.publishedAt,
+      publishAt: publishAt ?? this.publishAt,
+    );
   }
+
+  String getFormattedViewCount() => formatViewCount(viewCount);
 }

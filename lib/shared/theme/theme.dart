@@ -348,6 +348,7 @@ var lightTheme = ThemeData(
       textStyle: ThemeTextStyles.labelLarge.copyWith(
         color: ThemeLightColors.primary,
       ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
     ),
   ),
   tabBarTheme: const TabBarThemeData(
@@ -511,6 +512,7 @@ var darkTheme = ThemeData(
       textStyle: ThemeTextStyles.labelLarge.copyWith(
         color: ThemeLightColors.primary,
       ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
     ),
   ),
   tabBarTheme: const TabBarThemeData(

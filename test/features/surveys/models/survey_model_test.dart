@@ -433,5 +433,78 @@ void main() {
         expect(result, isNot(contains('Abgelaufen')));
       });
     });
+
+    group('viewCount', () {
+      test('defaults to 0 when not passed to constructor', () {
+        final survey = SurveyEntry(
+          id: 1,
+          documentId: 'doc-1',
+          title: 'Test',
+          expiresAt: DateTime(2030, 1, 1),
+          createdAt: DateTime(2020, 1, 1),
+          type: SurveyType.yesNo,
+          yesVoters: [],
+          noVoters: [],
+          comments: [],
+        );
+
+        expect(survey.viewCount, 0);
+      });
+
+      test('copyWith only replaces viewCount, keeps other fields', () {
+        final survey = SurveyEntry(
+          id: 1,
+          documentId: 'doc-1',
+          title: 'Test',
+          expiresAt: DateTime(2030, 1, 1),
+          createdAt: DateTime(2020, 1, 1),
+          type: SurveyType.yesNo,
+          yesVoters: [1],
+          noVoters: [2],
+          comments: [],
+          viewCount: 5,
+        );
+
+        final updated = survey.copyWith(viewCount: 6);
+
+        expect(updated.viewCount, 6);
+        expect(updated.id, survey.id);
+        expect(updated.documentId, survey.documentId);
+        expect(updated.title, survey.title);
+        expect(updated.yesVoters, survey.yesVoters);
+        expect(updated.noVoters, survey.noVoters);
+      });
+
+      test('fromJson reads viewCount from attributes', () {
+        final json = {
+          'id': 1,
+          'documentId': 'doc-1',
+          'title': 'Pizza?',
+          'type': 'yes-no',
+          'expiresAt': '2030-01-01',
+          'createdAt': '2020-01-01T00:00:00.000Z',
+          'viewCount': 42,
+        };
+
+        final survey = SurveyEntry.fromJson(json, '');
+
+        expect(survey.viewCount, 42);
+      });
+
+      test('fromJson defaults viewCount to 0 when missing', () {
+        final json = {
+          'id': 1,
+          'documentId': 'doc-1',
+          'title': 'Pizza?',
+          'type': 'yes-no',
+          'expiresAt': '2030-01-01',
+          'createdAt': '2020-01-01T00:00:00.000Z',
+        };
+
+        final survey = SurveyEntry.fromJson(json, '');
+
+        expect(survey.viewCount, 0);
+      });
+    });
   });
 }

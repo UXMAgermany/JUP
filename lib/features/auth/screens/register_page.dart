@@ -2,18 +2,18 @@ import 'package:auto_route/auto_route.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/features/auth/widgets/checkbox_form_field.dart';
 import 'package:jup/features/files/controllers/file_provider.dart';
 import 'package:jup/features/files/models/file_model.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
-import 'package:jup/router/models/navigation_entry.dart';
-import 'package:jup/router/widgets/main_app_bar.dart';
-import 'package:jup/router/widgets/main_app_drawer.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/utils/avatar_helper.dart';
 import 'package:jup/shared/utils/date_format_helper.dart';
+import 'package:jup/shared/widgets/pattern_aware_scaffold.dart';
+import 'package:jup/shared/widgets/sub_page_app_bar.dart';
 import 'package:jup/shared/widgets/text.dart';
 
 @RoutePage()
@@ -47,6 +47,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   String? _localAvatarId;
   bool _acceptedCodex = false;
   bool _acceptedTracking = false;
+  bool _isInstitution = false;
   bool _obscurePassword = true;
 
   @override
@@ -131,7 +132,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             _birthday!,
             avatarPath,
             _acceptedTracking,
+            _isInstitution,
           );
+
+          // Signalisiert dem System-Passwortmanager (iOS Keychain /
+          // Google Passwortmanager), dass die Zugangsdaten gespeichert
+          // werden dürfen → "Passwort sichern?"-Abfrage.
+          TextInput.finishAutofillContext();
 
           if (context.mounted) {
             context.router.replaceAll([const RegisterSuccessRoute()]);
@@ -161,19 +168,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       if (_birthday == null) return false;
 
       final age = now.year - _birthday!.year;
-      final hasHadBirthdayThisYear = now.month > _birthday!.month ||
+      final hasHadBirthdayThisYear =
+          now.month > _birthday!.month ||
           (now.month == _birthday!.month && now.day >= _birthday!.day);
 
       final actualAge = hasHadBirthdayThisYear ? age : age - 1;
       return actualAge >= 16;
     }
 
-    return Scaffold(
-      appBar: const MainAppBar(
-        activeTab: NavigationElement.profile,
-        titleOverride: "Erstelle deinen Account",
-      ),
-      drawer: const MainAppDrawer(),
+    return PatternAwareScaffold(
+      appBar: SubPageAppBar(titleText: "Erstelle deinen Account"),
       body: SafeArea(
         child: ListView(
           children: [
@@ -188,98 +192,114 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 spacing: 16,
                 children: <Widget>[
-                  TextFormField(
-                    controller: _emailCtrl,
-                    focusNode: _emailFocus,
-                    decoration: const InputDecoration(
-                      labelText: 'E-Mail-Adresse',
-                    ),
-                    validator: (String? value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Was vergessen?';
-                      }
+                  AutofillGroup(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 16,
+                      children: <Widget>[
+                        TextFormField(
+                          controller: _emailCtrl,
+                          focusNode: _emailFocus,
+                          decoration: const InputDecoration(
+                            labelText: 'E-Mail-Adresse',
+                          ),
+                          keyboardType: TextInputType.emailAddress,
+                          autofillHints: const [
+                            AutofillHints.username,
+                            AutofillHints.email,
+                          ],
+                          validator: (String? value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Was vergessen?';
+                            }
 
-                      final emailRegex = RegExp(
-                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                      );
-                      if (!emailRegex.hasMatch(value)) {
-                        return 'Das ist keine gültige Email Adresse.';
-                      }
-                      return null;
-                    },
-                  ),
-                  TextFormField(
-                    controller: _passwordCtrl,
-                    focusNode: _passwordFocus,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Passwort (mind. 8 Zeichen)',
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
+                            final emailRegex = RegExp(
+                              r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                            );
+                            if (!emailRegex.hasMatch(value)) {
+                              return 'Das ist keine gültige Email Adresse.';
+                            }
+                            return null;
+                          },
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
+                        TextFormField(
+                          controller: _passwordCtrl,
+                          focusNode: _passwordFocus,
+                          obscureText: _obscurePassword,
+                          autofillHints: const [AutofillHints.newPassword],
+                          decoration: InputDecoration(
+                            labelText: 'Passwort (mind. 8 Zeichen)',
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                            ),
+                          ),
+                          validator: (String? value) {
+                            if (value == null) {
+                              return 'Was vergessen?';
+                            } else if (value.length < 8) {
+                              return 'Das sind keine 8 Zeichen.';
+                            }
+                            return null;
+                          },
+                        ),
+                        TextFormField(
+                          controller: _nicknameCtrl,
+                          focusNode: _nicknameFocus,
+                          decoration: const InputDecoration(
+                            labelText: 'Benutzername',
+                          ),
+                          validator: (String? value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Was vergessen?';
+                            }
+                            return null;
+                          },
+                        ),
+                        TextFormField(
+                          controller: _firstnameCtrl,
+                          focusNode: _firstnameFocus,
+                          decoration: const InputDecoration(
+                            labelText: 'Vorname (wie im Ausweis)',
+                          ),
+                          autofillHints: const [AutofillHints.givenName],
+                          validator: (String? value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Was vergessen?';
+                            }
+                            return null;
+                          },
+                        ),
+                        TextFormField(
+                          controller: _lastnameCtrl,
+                          focusNode: _lastnameFocus,
+                          decoration: const InputDecoration(
+                            labelText: 'Nachname (wie im Ausweis)',
+                          ),
+                          autofillHints: const [AutofillHints.familyName],
+                          validator: (String? value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Was vergessen?';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
                     ),
-                    validator: (String? value) {
-                      if (value == null) {
-                        return 'Was vergessen?';
-                      } else if (value.length < 8) {
-                        return 'Das sind keine 8 Zeichen.';
-                      }
-                      return null;
-                    },
-                  ),
-                  TextFormField(
-                    controller: _nicknameCtrl,
-                    focusNode: _nicknameFocus,
-                    decoration: const InputDecoration(
-                      labelText: 'Benutzername',
-                    ),
-                    validator: (String? value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Was vergessen?';
-                      }
-                      return null;
-                    },
-                  ),
-                  TextFormField(
-                    controller: _firstnameCtrl,
-                    focusNode: _firstnameFocus,
-                    decoration: const InputDecoration(
-                      labelText: 'Vorname (wie im Ausweis)',
-                    ),
-                    validator: (String? value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Was vergessen?';
-                      }
-                      return null;
-                    },
-                  ),
-                  TextFormField(
-                    controller: _lastnameCtrl,
-                    focusNode: _lastnameFocus,
-                    decoration: const InputDecoration(
-                      labelText: 'Nachname (wie im Ausweis)',
-                    ),
-                    validator: (String? value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Was vergessen?';
-                      }
-                      return null;
-                    },
                   ),
                   TextFormField(
                     readOnly: true,
                     decoration: const InputDecoration(
                       labelText: 'Geburtstag (wie im Ausweis)',
-                      suffixIcon: Icon(Icons.calendar_today),
+                      suffixIcon: Icon(Icons.insert_invitation),
                     ),
                     controller: TextEditingController(
                       text: _birthday != null
@@ -295,8 +315,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       final age = now.year - _birthday!.year;
                       final hasHadBirthdayThisYear =
                           now.month > _birthday!.month ||
-                              (now.month == _birthday!.month &&
-                                  now.day >= _birthday!.day);
+                          (now.month == _birthday!.month &&
+                              now.day >= _birthday!.day);
                       final actualAge = hasHadBirthdayThisYear ? age : age - 1;
 
                       if (actualAge < 12) {
@@ -356,7 +376,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                 scrollDirection: Axis.horizontal,
                                 itemCount:
                                     AvatarHelper.availableAvatarIds.length +
-                                        cmsAvatars.length,
+                                    cmsAvatars.length,
                                 separatorBuilder: (context, index) =>
                                     const SizedBox(width: 12),
                                 itemBuilder: (context, index) {
@@ -403,7 +423,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                     );
                                   } else {
                                     // CMS avatars come after local avatars
-                                    final cmsIndex = index -
+                                    final cmsIndex =
+                                        index -
                                         AvatarHelper.availableAvatarIds.length;
                                     final file = cmsAvatars[cmsIndex];
                                     final isSelected = _avatar?.id == file.id;
@@ -437,9 +458,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                             fit: BoxFit.cover,
                                             placeholder: (context, url) =>
                                                 const SizedBox(
-                                              width: 48,
-                                              height: 48,
-                                            ),
+                                                  width: 48,
+                                                  height: 48,
+                                                ),
                                             errorWidget:
                                                 (context, url, error) =>
                                                     const SizedBox.shrink(),
@@ -466,9 +487,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         ),
                         TextSpan(
                           text: 'Warum?',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall!
+                          style: Theme.of(context).textTheme.titleSmall!
                               .copyWith(
                                 color: Theme.of(context).colorScheme.primary,
                                 decoration: TextDecoration.underline,
@@ -478,11 +497,21 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                               ),
                           recognizer: TapGestureRecognizer()
                             ..onTap = () {
-                              context.router.push(VerificationRoute());
+                              context.router.root.push(VerificationRoute());
                             },
                         ),
                       ],
                     ),
+                  ),
+                  CheckboxFormField(
+                    title: Text(
+                      'Ich bin eine Institution und möchte eine Gruppe gründen können.',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    value: _isInstitution,
+                    onChanged: (bool? value) => setState(() {
+                      _isInstitution = value == true;
+                    }),
                   ),
                   CheckboxFormField(
                     title: RichText(
@@ -494,9 +523,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                           ),
                           TextSpan(
                             text: 'Verhaltenskodex',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall!
+                            style: Theme.of(context).textTheme.titleSmall!
                                 .copyWith(
                                   color: Theme.of(context).colorScheme.primary,
                                   decoration: TextDecoration.underline,
@@ -539,9 +566,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                             ),
                             TextSpan(
                               text: 'Mehr erfahren',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall!
+                              style: Theme.of(context).textTheme.titleSmall!
                                   .copyWith(
                                     color: Theme.of(
                                       context,
@@ -583,7 +608,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   ).withPaddingTop(24),
                   TextButton(
                     onPressed: () {
-                      context.router.push(LoginRoute());
+                      context.router.root.push(LoginRoute());
                     },
                     child: const Text('Einloggen'),
                   ),

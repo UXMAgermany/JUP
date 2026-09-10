@@ -1,10 +1,12 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:jup/shared/extensions/snackbar_extension.dart';
 import 'package:jup/shared/utils/env_config.dart';
-import 'package:jup/shared/widgets/report_bottom_sheet.dart';
+import 'package:jup/shared/widgets/pattern_aware_scaffold.dart';
 import 'package:jup/shared/widgets/sub_page_app_bar.dart';
+import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:jup/shared/widgets/report_bottom_sheet.dart';
 import 'package:jup/shared/widgets/text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -28,17 +30,15 @@ class ProfileSettingsReportPage extends StatelessWidget {
       await launchUrl(emailUri);
     } else {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('E-Mail-App konnte nicht geöffnet werden.')),
-        );
+        context.showAppSnackbar('E-Mail-App konnte nicht geöffnet werden.');
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: SubPageAppBar(titleText: "Problem melden", centerTitle: true),
+    return PatternAwareScaffold(
+      appBar: SubPageAppBar(titleText: "Problem melden"),
       body: SafeArea(
         child: ListView(
           children: [

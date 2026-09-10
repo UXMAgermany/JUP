@@ -102,6 +102,7 @@ class EventEntry {
   final String description;
   final String location;
   final DateTime startTime;
+  final DateTime? signupClosesAt;
   final DateTime? endDate;
   final DateTime createdAt;
   final String? imageUrl;
@@ -110,6 +111,13 @@ class EventEntry {
   final EventRepeatType? repeats;
   final String? templateEventId;
   final List<EventContentBlock> contentBlocks;
+  final int viewCount;
+
+  /// Optionale Gruppen-Bindung. Null bedeutet global („Alle"). Wenn gesetzt,
+  /// stammt das Event aus dieser Gruppe und wird in der App-Karte als
+  /// Meta-Zeile angezeigt.
+  final String? scopeGroupDocumentId;
+  final String? scopeGroupName;
 
   EventEntry({
     required this.id,
@@ -120,6 +128,7 @@ class EventEntry {
     required this.description,
     required this.location,
     required this.startTime,
+    this.signupClosesAt,
     this.endDate,
     required this.createdAt,
     this.imageUrl,
@@ -128,6 +137,9 @@ class EventEntry {
     this.repeats,
     this.templateEventId,
     this.contentBlocks = const [],
+    this.viewCount = 0,
+    this.scopeGroupDocumentId,
+    this.scopeGroupName,
   });
 
   factory EventEntry.fromJson(Map<String, dynamic> json, String baseUrl) {
@@ -211,6 +223,14 @@ class EventEntry {
         throw ArgumentError('Missing mandatory field: createdAt');
       }
 
+      final groupJson = json['group'];
+      final scopeGroupDocumentId = groupJson is Map
+          ? groupJson['documentId'] as String?
+          : null;
+      final scopeGroupName = groupJson is Map
+          ? groupJson['name'] as String?
+          : null;
+
       return EventEntry(
         id: json['id'] as int,
         documentId: json['documentId'] as String,
@@ -222,6 +242,9 @@ class EventEntry {
         description: json['text'] as String,
         location: json['location'] as String,
         startTime: DateTime.parse(json['startTime'] as String),
+        signupClosesAt: json['signupClosesAt'] != null
+            ? DateTime.parse(json['signupClosesAt'] as String)
+            : null,
         endDate: json['endDate'] != null
             ? DateTime.parse(json['endDate'] as String)
             : null,
@@ -238,6 +261,9 @@ class EventEntry {
             ? json['templateEvent']['documentId'] as String?
             : null,
         contentBlocks: blocks,
+        viewCount: json['viewCount'] as int? ?? 0,
+        scopeGroupDocumentId: scopeGroupDocumentId,
+        scopeGroupName: scopeGroupName,
       );
     } catch (e) {
       // Re-throw with more context
@@ -255,12 +281,59 @@ class EventEntry {
       'description': description,
       'location': location,
       'startTime': startTime.toIso8601String(),
+      'signupClosesAt': signupClosesAt?.toIso8601String(),
       'endDate': endDate?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
       'imageUrl': imageUrl,
       'participants': participants,
       'repeats': repeats?.toJson(),
     };
+  }
+
+  EventEntry copyWith({
+    int? id,
+    String? documentId,
+    EventCategory? category,
+    String? title,
+    String? subTitle,
+    String? description,
+    String? location,
+    DateTime? startTime,
+    DateTime? signupClosesAt,
+    DateTime? endDate,
+    DateTime? createdAt,
+    String? imageUrl,
+    List<String>? participants,
+    List<Comment>? comments,
+    EventRepeatType? repeats,
+    String? templateEventId,
+    List<EventContentBlock>? contentBlocks,
+    int? viewCount,
+    String? scopeGroupDocumentId,
+    String? scopeGroupName,
+  }) {
+    return EventEntry(
+      id: id ?? this.id,
+      documentId: documentId ?? this.documentId,
+      category: category ?? this.category,
+      title: title ?? this.title,
+      subTitle: subTitle ?? this.subTitle,
+      description: description ?? this.description,
+      location: location ?? this.location,
+      startTime: startTime ?? this.startTime,
+      signupClosesAt: signupClosesAt ?? this.signupClosesAt,
+      endDate: endDate ?? this.endDate,
+      createdAt: createdAt ?? this.createdAt,
+      imageUrl: imageUrl ?? this.imageUrl,
+      participants: participants ?? this.participants,
+      comments: comments ?? this.comments,
+      repeats: repeats ?? this.repeats,
+      templateEventId: templateEventId ?? this.templateEventId,
+      contentBlocks: contentBlocks ?? this.contentBlocks,
+      viewCount: viewCount ?? this.viewCount,
+      scopeGroupDocumentId: scopeGroupDocumentId ?? this.scopeGroupDocumentId,
+      scopeGroupName: scopeGroupName ?? this.scopeGroupName,
+    );
   }
 
   int get participantCount => participants.length;
@@ -275,6 +348,18 @@ class EventEntry {
 
   /// Returns true if the event's start time is in the past
   bool get isPast => startTime.isBefore(DateTime.now());
+
+  /// True wenn ein Anmeldeschluss gesetzt ist und der heutige Tag bereits
+  /// auf oder nach dem Stichtag liegt. Der Stichtag-Tag selbst gilt als
+  /// geschlossen — Admins setzen das Datum als „ab dann nicht mehr".
+  bool get isSignupClosed {
+    final closes = signupClosesAt;
+    if (closes == null) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final closesDay = DateTime(closes.year, closes.month, closes.day);
+    return !closesDay.isAfter(today);
+  }
 
   String getCategoryName() {
     return category.getDisplayName();
@@ -346,65 +431,4 @@ class EventMediaBlock extends EventContentBlock {
     '__component': 'event.media-block',
     'media': mediaId,
   };
-}
-
-/// Input model for creating a new event via the Strapi API.
-class EventCreateInput {
-  final String title;
-  final String? subTitle;
-  final String location;
-  final DateTime startTime;
-  final EventCategory category;
-  final int? imageMediaId;
-  final EventRepeatType? repeats;
-  final DateTime? publishAt;
-  final DateTime? expiresAt;
-  final List<EventContentBlock> contentBlocks;
-
-  EventCreateInput({
-    required this.title,
-    this.subTitle,
-    required this.location,
-    required this.startTime,
-    required this.category,
-    required this.contentBlocks,
-    this.imageMediaId,
-    this.repeats,
-    this.publishAt,
-    this.expiresAt,
-  });
-
-  /// Strapi expects the payload wrapped in `{ data: { ... } }`.
-  /// Returns the inner `data` map; callers wrap it themselves.
-  Map<String, dynamic> toCreateBody() {
-    final body = <String, dynamic>{
-      'title': title,
-      'category': category.toJson(),
-      'location': location,
-      'startTime': startTime.toUtc().toIso8601String(),
-      'contentBlocks': contentBlocks.map((b) => b.toCmsJson()).toList(),
-    };
-    // Mirror the lead text into the legacy `text` field — Event-Schema hat
-    // `text` als required, und alte Detail-Page-Code-Pfade lesen es noch.
-    final firstText = contentBlocks.whereType<EventTextBlock>().firstOrNull;
-    if (firstText != null && firstText.body.isNotEmpty) {
-      body['text'] = firstText.body;
-    }
-    if (subTitle != null && subTitle!.isNotEmpty) {
-      body['subTitle'] = subTitle;
-    }
-    if (imageMediaId != null) {
-      body['image'] = imageMediaId;
-    }
-    if (repeats != null) {
-      body['repeats'] = repeats!.toJson();
-    }
-    if (publishAt != null) {
-      body['publishAt'] = publishAt!.toUtc().toIso8601String();
-    }
-    if (expiresAt != null) {
-      body['expiresAt'] = expiresAt!.toUtc().toIso8601String();
-    }
-    return body;
-  }
 }

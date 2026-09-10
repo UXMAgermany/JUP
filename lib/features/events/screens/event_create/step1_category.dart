@@ -27,8 +27,8 @@ class EventCreateStep1Category extends StatelessWidget {
           Wrap(
             spacing: 16,
             runSpacing: 16,
-            alignment: WrapAlignment.spaceEvenly,
-            runAlignment: WrapAlignment.spaceEvenly,
+            alignment: WrapAlignment.center,
+            runAlignment: WrapAlignment.start,
             children: wizardSelectableEventCategories.map((c) {
               return ToggleButton(
                 label: c.displayLabel,

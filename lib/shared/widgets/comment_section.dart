@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:jup/shared/extensions/snackbar_extension.dart';
 import 'package:jup/shared/models/comment_model.dart';
 import 'package:jup/shared/widgets/comment_item.dart';
 import 'package:jup/shared/widgets/text.dart';
@@ -81,9 +82,7 @@ class _CommentSectionState extends ConsumerState<CommentSection> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler beim Hinzufügen des Kommentars: $e')),
-        );
+        context.showAppSnackbar('Fehler beim Hinzufügen des Kommentars: $e');
       }
     } finally {
       if (mounted) {

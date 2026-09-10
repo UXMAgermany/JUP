@@ -89,7 +89,7 @@ class _NumberSpinnerState extends State<NumberSpinner> {
     final scheme = theme.colorScheme;
     final label =
         widget.semanticsLabelBuilder?.call(widget.value) ??
-            'Anzahl: ${widget.value}';
+        'Anzahl: ${widget.value}';
     return Semantics(
       label: label,
       child: Container(
@@ -196,14 +196,22 @@ class _SpinnerSegment extends StatelessWidget {
           left: side == _SegmentSide.right ? divider : BorderSide.none,
         ),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          child: Tooltip(
-            message: tooltip,
-            child: Center(
-              child: Icon(icon, size: 24, color: iconColor),
+      // Tooltip übersetzt sich nur teilweise in Semantics — VoiceOver liest
+      // ohne dieses Wrapper nur „Anzahl erhöhen", ohne das Element als
+      // Button anzukündigen oder seinen Enabled-Zustand zu reflektieren.
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        enabled: !disabled,
+        excludeSemantics: true,
+        onTap: onTap,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Tooltip(
+              message: tooltip,
+              child: Center(child: Icon(icon, size: 24, color: iconColor)),
             ),
           ),
         ),

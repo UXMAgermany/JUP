@@ -155,7 +155,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                     children: [
                       FilledButton(
                         onPressed: () {
-                          context.router.push(RegisterRoute());
+                          context.router.root.push(RegisterRoute());
                         },
                         child: const Text('Registrieren'),
                       ),
@@ -163,7 +163,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                       TitleSmall(text: "Du hast schon einen Account?"),
                       TextButton(
                         onPressed: () {
-                          context.router.push(LoginRoute());
+                          context.router.root.push(LoginRoute());
                         },
                         child: const Text('Einloggen'),
                       ),

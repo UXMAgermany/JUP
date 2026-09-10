@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:jup/features/files/models/file_model.dart';
 import 'package:jup/features/shorts/models/shorts_model.dart';
 import 'package:jup/features/shorts/services/video_player_pool.dart';
 import 'package:jup/features/shorts/widgets/shorts_feed_item.dart';
-import 'package:jup/features/files/models/file_model.dart';
 
 void main() {
   group('ShortsFeedItem Widget Tests', () {
@@ -57,7 +57,7 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest(shortsEntry: testShorts));
       await tester.pump();
 
-      expect(find.text('42 mal angesehen'), findsOneWidget);
+      expect(find.text('42 Mal angesehen'), findsOneWidget);
     });
 
     testWidgets('should not display title text when title is null', (
@@ -76,7 +76,7 @@ void main() {
       await tester.pump();
 
       // Title should not be displayed, but view count should be
-      expect(find.text('42 mal angesehen'), findsOneWidget);
+      expect(find.text('42 Mal angesehen'), findsOneWidget);
     });
 
     testWidgets('should use theme background', (WidgetTester tester) async {
@@ -250,7 +250,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('0 mal angesehen'), findsOneWidget);
+      expect(find.text('0 Mal angesehen'), findsOneWidget);
     });
 
     testWidgets('should handle large view counts', (WidgetTester tester) async {
@@ -266,7 +266,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('1000000 mal angesehen'), findsOneWidget);
+      expect(find.text('1000000 Mal angesehen'), findsOneWidget);
     });
 
     testWidgets('should handle long titles without overflow', (

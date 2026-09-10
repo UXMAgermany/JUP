@@ -5,6 +5,8 @@ import 'package:jup/features/events/models/event_model.dart';
 import 'package:jup/features/events/widgets/event_bookmark_button.dart';
 import 'package:jup/features/events/widgets/event_participation_button.dart';
 import 'package:jup/shared/utils/date_format_helper.dart';
+import 'package:jup/shared/utils/view_count_formatter.dart';
+import 'package:jup/shared/widgets/group_scope_meta.dart';
 import 'package:jup/shared/widgets/new_badge.dart';
 import 'package:jup/shared/widgets/text.dart';
 
@@ -20,6 +22,7 @@ class EventCard extends StatefulWidget {
   final bool isParticipationLoading;
   final bool isPast;
   final bool isNew;
+  final bool isJUPAdmin;
 
   const EventCard({
     super.key,
@@ -34,6 +37,7 @@ class EventCard extends StatefulWidget {
     this.isParticipationLoading = false,
     this.isPast = false,
     this.isNew = false,
+    this.isJUPAdmin = false,
   });
 
   @override
@@ -62,9 +66,8 @@ class _EventCardState extends State<EventCard> {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: widget.isFullWidth
-                ? MainAxisSize.max
-                : MainAxisSize.min,
+            mainAxisSize:
+                widget.isFullWidth ? MainAxisSize.max : MainAxisSize.min,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
@@ -122,7 +125,7 @@ class _EventCardState extends State<EventCard> {
                     SizedBox(height: 8),
                     Row(
                       children: [
-                        Icon(Icons.calendar_today, size: 12),
+                        Icon(Icons.insert_invitation, size: 12),
                         SizedBox(width: 4),
                         BodySmall(
                           text: DateFormatHelper.formatDateTime(
@@ -143,16 +146,42 @@ class _EventCardState extends State<EventCard> {
                         Expanded(child: BodySmall(text: widget.event.location)),
                       ],
                     ),
+                    if (widget.event.scopeGroupName != null &&
+                        widget.event.scopeGroupName!.isNotEmpty) ...[
+                      SizedBox(height: 4),
+                      GroupScopeMeta(groupName: widget.event.scopeGroupName),
+                    ],
+                    if (widget.isJUPAdmin) ...[
+                      SizedBox(height: 4),
+                      Semantics(
+                        label:
+                            '${formatViewCount(widget.event.viewCount)}, nur für Administratoren sichtbar',
+                        child: ExcludeSemantics(
+                          child: Row(
+                            children: [
+                              Icon(Icons.visibility, size: 12),
+                              SizedBox(width: 4),
+                              BodySmall(
+                                text: formatViewCount(widget.event.viewCount),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                     SizedBox(height: widget.isFullWidth ? 16 : 12),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: widget.isPast
+                          ? MainAxisAlignment.end
+                          : MainAxisAlignment.spaceBetween,
                       children: [
                         if (!widget.isPast)
                           EventParticipationButton(
                             isParticipating: widget.isParticipating,
                             onTap: widget.onParticipateToggle,
                             isLoading: widget.isParticipationLoading,
-                            isDisabled: widget.isDisabled,
+                            isSignupClosed: widget.event.isSignupClosed &&
+                                !widget.isParticipating,
                           ),
                         Row(
                           children: [

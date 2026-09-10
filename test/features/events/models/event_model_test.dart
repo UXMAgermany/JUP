@@ -295,9 +295,28 @@ void main() {
 
       expect(event.subTitle, null);
       expect(event.endDate, null);
+      expect(event.signupClosesAt, null);
       expect(event.imageUrl, null);
       expect(event.participants, []);
       expect(event.comments, []);
+    });
+
+    test('should parse signupClosesAt from JSON when present', () {
+      final json = {
+        'id': 1,
+        'documentId': 'doc-1',
+        'category': 'sport',
+        'title': 'Tournament',
+        'text': 'Sign up early',
+        'location': 'Arena',
+        'startTime': '2026-09-01T18:00:00.000Z',
+        'signupClosesAt': '2026-08-25',
+        'createdAt': '2025-01-01T00:00:00.000Z',
+      };
+
+      final event = EventEntry.fromJson(json, 'https://example.com');
+
+      expect(event.signupClosesAt, DateTime.parse('2026-08-25'));
     });
 
     test('should parse participants as string IDs', () {
@@ -425,8 +444,45 @@ void main() {
 
       expect(json['subTitle'], null);
       expect(json['endDate'], null);
+      expect(json['signupClosesAt'], null);
       expect(json['imageUrl'], null);
       expect(json['participants'], []);
+    });
+
+    group('isSignupClosed', () {
+      EventEntry makeWith({DateTime? signupClosesAt}) {
+        return EventEntry(
+          id: 1,
+          documentId: 'doc-1',
+          category: EventCategory.sport,
+          title: 'Test',
+          description: 'desc',
+          location: 'loc',
+          startTime: DateTime.now().add(const Duration(days: 30)),
+          signupClosesAt: signupClosesAt,
+          createdAt: DateTime(2025, 1, 1),
+        );
+      }
+
+      test('false when signupClosesAt is null', () {
+        expect(makeWith().isSignupClosed, isFalse);
+      });
+
+      test('false when signupClosesAt lies in the future', () {
+        final future = DateTime.now().add(const Duration(days: 7));
+        expect(makeWith(signupClosesAt: future).isSignupClosed, isFalse);
+      });
+
+      test('true when signupClosesAt is today', () {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        expect(makeWith(signupClosesAt: today).isSignupClosed, isTrue);
+      });
+
+      test('true when signupClosesAt lies in the past', () {
+        final past = DateTime.now().subtract(const Duration(days: 1));
+        expect(makeWith(signupClosesAt: past).isSignupClosed, isTrue);
+      });
     });
   });
 }

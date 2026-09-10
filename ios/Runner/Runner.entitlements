@@ -4,5 +4,10 @@
 <dict>
 	<key>aps-environment</key>
 	<string>development</string>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:<YOUR_HOST></string>
+		<string>webcredentials:<YOUR_HOST></string>
+	</array>
 </dict>
 </plist>

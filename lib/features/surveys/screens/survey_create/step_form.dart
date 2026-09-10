@@ -170,8 +170,8 @@ class _SurveyCreateStepFormState extends State<SurveyCreateStepForm> {
                         // Nur die ersten beiden Optionen sind Pflicht (siehe
                         // isFormStepValid: nonEmptyCount >= 2). Ab Index 2
                         // darf der Ersteller leer lassen — leere Einträge
-                        // werden in SurveyCreateInput.toCreateBody()
-                        // herausgefiltert.
+                        // werden in SurveyCreateNotifier.submit vor dem
+                        // Absenden herausgefiltert.
                         labelText: _optionsRequired(s) && i < 2
                             ? 'Option (Pflichtfeld)'
                             : 'Option',

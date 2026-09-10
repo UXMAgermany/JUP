@@ -1,10 +1,9 @@
 import Flutter
 import UIKit
 import AVFoundation
-import UserNotifications
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -37,22 +36,13 @@ import UserNotifications
       object: AVAudioSession.sharedInstance()
     )
 
-    GeneratedPluginRegistrant.register(with: self)
-    clearBadge()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  override func applicationDidBecomeActive(_ application: UIApplication) {
-    super.applicationDidBecomeActive(application)
-    clearBadge()
-  }
-
-  private func clearBadge() {
-    if #available(iOS 16.0, *) {
-      UNUserNotificationCenter.current().setBadgeCount(0) { _ in }
-    } else {
-      UIApplication.shared.applicationIconBadgeNumber = 0
-    }
+  // Plugin registration happens here under the UIScene lifecycle; the implicit
+  // engine does not exist yet in application(_:didFinishLaunchingWithOptions:).
+  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
   }
 
   @objc func handleAudioSessionInterruption(notification: Notification) {

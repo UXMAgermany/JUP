@@ -109,7 +109,12 @@ class _ContentBlockTileState extends State<ContentBlockTile> {
               clipBehavior: Clip.antiAlias,
               child: isVideo
                   ? VideoThumbnail(file: file)
-                  : Image.file(file, fit: BoxFit.cover, width: double.infinity),
+                  : Image.file(
+                      file,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      semanticLabel: 'Bild-Vorschau',
+                    ),
             ),
           ),
           const SizedBox(width: 8),

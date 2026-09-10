@@ -4,9 +4,10 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'dart:async' as _i5;
+import 'dart:io' as _i6;
 
 import 'package:http/http.dart' as _i2;
-import 'package:jup/shared/controllers/session_manager.dart' as _i6;
+import 'package:jup/shared/controllers/session_manager.dart' as _i7;
 import 'package:jup/shared/services/api_client.dart' as _i3;
 import 'package:mockito/mockito.dart' as _i1;
 import 'package:mockito/src/dummies.dart' as _i4;
@@ -195,6 +196,34 @@ class MockStrapiClient extends _i1.Mock implements _i3.StrapiClient {
           as _i5.Future<int>);
 
   @override
+  _i5.Future<Map<String, dynamic>> postMultipartWithMedia(
+    String? path, {
+    required Map<String, dynamic>? data,
+    _i6.File? heroImage,
+    List<_i6.File>? blockMedia = const [],
+    bool? useUserAuth = true,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #postMultipartWithMedia,
+              [path],
+              {
+                #data: data,
+                #heroImage: heroImage,
+                #blockMedia: blockMedia,
+                #useUserAuth: useUserAuth,
+              },
+            ),
+            returnValue: _i5.Future<Map<String, dynamic>>.value(
+              <String, dynamic>{},
+            ),
+            returnValueForMissingStub: _i5.Future<Map<String, dynamic>>.value(
+              <String, dynamic>{},
+            ),
+          )
+          as _i5.Future<Map<String, dynamic>>);
+
+  @override
   _i5.Future<_i2.Response> delete(String? path, {bool? useUserAuth = false}) =>
       (super.noSuchMethod(
             Invocation.method(#delete, [path], {#useUserAuth: useUserAuth}),
@@ -260,7 +289,7 @@ class MockStrapiClient extends _i1.Mock implements _i3.StrapiClient {
 /// A class which mocks [SessionManager].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockSessionManager extends _i1.Mock implements _i6.SessionManager {
+class MockSessionManager extends _i1.Mock implements _i7.SessionManager {
   @override
   _i5.Future<void> saveToken(String? token) =>
       (super.noSuchMethod(

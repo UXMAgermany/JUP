@@ -114,13 +114,13 @@ class _NewsLoggedOutPageState extends ConsumerState<NewsLoggedOutPage> {
                                 child: NewsCard(
                                   header: entry.title,
                                   subhead: entry.subTitle,
-                                  text: entry.text,
                                   date: DateFormatHelper.formatDate(
                                     entry.createdAt,
                                   ),
                                   author: entry.author,
                                   imageUrl: entry.imageUrl,
                                   category: entry.category,
+                                  scopeGroupName: entry.scopeGroupName,
                                   onTap: () {
                                     if (!authState.isAuthenticated) {
                                       LoginRequiredDialog.show(

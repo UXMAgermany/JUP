@@ -4,13 +4,13 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:jup/features/news/models/news_model.dart';
 import 'package:jup/shared/models/pending_content_block.dart';
 
-// Backward-compat-Aliase für den bestehenden News-Code. Neue Features sollen
-// PendingContentBlock direkt verwenden.
-typedef PendingNewsBlock = PendingContentBlock;
-typedef PendingTextBlock = PendingContentTextBlock;
-typedef PendingMediaBlock = PendingContentMediaBlock;
-
 class NewsCreateFormState {
+  /// Optionaler Scope-Schritt: Zielgruppe (documentId) oder null = global.
+  final String? scopeGroupDocumentId;
+
+  /// Wurde der Scope-Step bewusst durchlaufen (Tap oder Auto-Skip)?
+  final bool scopeSelected;
+
   final NewsCategory? category;
   final File? heroImage;
   final String title;
@@ -21,6 +21,8 @@ class NewsCreateFormState {
   final DateTime? publishAt;
 
   const NewsCreateFormState({
+    this.scopeGroupDocumentId,
+    this.scopeSelected = false,
     this.category,
     this.heroImage,
     this.title = '',
@@ -31,6 +33,7 @@ class NewsCreateFormState {
     this.publishAt,
   });
 
+  bool get isScopeStepValid => scopeSelected;
   bool get isStep1Valid => category != null;
   bool get isStep2Valid =>
       title.trim().isNotEmpty && introText.trim().isNotEmpty;
@@ -38,6 +41,8 @@ class NewsCreateFormState {
   bool get isStep4Valid => !publishLater || publishAt != null;
 
   NewsCreateFormState copyWith({
+    Object? scopeGroupDocumentId = _unset,
+    bool? scopeSelected,
     NewsCategory? category,
     Object? heroImage = _unset,
     String? title,
@@ -48,6 +53,10 @@ class NewsCreateFormState {
     Object? publishAt = _unset,
   }) {
     return NewsCreateFormState(
+      scopeGroupDocumentId: identical(scopeGroupDocumentId, _unset)
+          ? this.scopeGroupDocumentId
+          : scopeGroupDocumentId as String?,
+      scopeSelected: scopeSelected ?? this.scopeSelected,
       category: category ?? this.category,
       heroImage: identical(heroImage, _unset)
           ? this.heroImage
@@ -68,6 +77,15 @@ const Object _unset = Object();
 
 class NewsCreateFormController extends StateNotifier<NewsCreateFormState> {
   NewsCreateFormController() : super(const NewsCreateFormState());
+
+  /// Setzt die Zielgruppe und markiert den Scope-Step als bewusst durchlaufen.
+  /// `null` entspricht „Alle" (global).
+  void setScope(String? groupDocumentId) {
+    state = state.copyWith(
+      scopeGroupDocumentId: groupDocumentId,
+      scopeSelected: true,
+    );
+  }
 
   void setCategory(NewsCategory category) =>
       state = state.copyWith(category: category);

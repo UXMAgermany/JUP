@@ -13,6 +13,8 @@ import 'package:jup/shared/widgets/category_dropdown.dart';
 import 'package:jup/shared/widgets/connection_error_widget.dart';
 import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/features/events/controllers/events_filter_provider.dart';
+import 'package:jup/shared/controllers/group_filter_provider.dart';
+import 'package:jup/shared/widgets/group_dropdown.dart';
 import 'package:jup/features/events/controllers/events_provider.dart';
 import 'package:jup/features/events/models/event_model.dart';
 import 'package:jup/shared/controllers/scroll_controller_provider.dart';
@@ -159,6 +161,15 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
           .fetchEvents(categories: next.isNotEmpty ? next : null);
     });
 
+    // Group-Filter triggert Server-Refetch — wirkt für alle Tabs gleich,
+    // weil die Liste auch durch „Gemerkt"/„Zugesagt" durchgereicht wird.
+    ref.listen<String?>(groupFilterProvider('events'), (previous, next) {
+      if (previous == next) return;
+      ref.read(eventsListProvider.notifier).setGroupFilter(
+            groupDocumentId: next,
+          );
+    });
+
     if (authState.isAuthenticated == false) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -192,6 +203,7 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
                     selectedEventsFilters,
                     _alleScrollController,
                     showPopular: true,
+                    showGroupFilter: true,
                   ),
                   // Gemerkt tab
                   _buildEventsList(
@@ -257,6 +269,7 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
     Set<EventCategory> selectedEventsFilters,
     ScrollController scrollController, {
     bool showPopular = false,
+    bool showGroupFilter = false,
     String? emptyMessage,
   }) {
     final seenPosts = ref.watch(seenPostsProvider);
@@ -266,9 +279,13 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
       seenPosts,
       (e) => e.documentId,
       (e) => e.isPast,
+      compare: _eventOrder,
     );
 
-    // Get popular events (participant count >10) - only for "Alle" tab
+    // Get popular events (participant count >10) - only for "Alle" tab.
+    // Reihenfolge innerhalb der „neu"/„gesehen"-Gruppen bleibt nach
+    // Teilnehmerzahl DESC (Pre-Sort), `sortWithBadges` schiebt die
+    // vorbei-Events ans Ende.
     final popularEvents = showPopular
         ? allEvents.where((event) => event.participantCount >= 10)
         : <EventEntry>[];
@@ -327,9 +344,9 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
                             isLoaded: ref
                                 .read(seenPostsProvider.notifier)
                                 .isLoaded,
-                            firstLaunchDate: ref
+                            firstLoginAt: ref
                                 .read(seenPostsProvider.notifier)
-                                .firstLaunchDate,
+                                .firstLoginAt,
                           ),
                       onTap: () => context.router.push(
                         EventDetailRoute(eventEntry: event),
@@ -342,22 +359,32 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
             const SizedBox(height: 24),
           ],
 
-          // Category Filters
+          // Category + (im „Alle"-Tab) Group Filter
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: CategoryDropdown<EventCategory>(
-              categories: const [
-                EventCategory.sport,
-                EventCategory.music,
-                EventCategory.food,
-                EventCategory.gaming,
-                EventCategory.diy,
-                EventCategory.other,
+            child: Row(
+              spacing: 8,
+              children: [
+                Flexible(
+                  child: CategoryDropdown<EventCategory>(
+                    categories: const [
+                      EventCategory.sport,
+                      EventCategory.music,
+                      EventCategory.food,
+                      EventCategory.gaming,
+                      EventCategory.diy,
+                      EventCategory.other,
+                    ],
+                    selectedCategories: selectedEventsFilters,
+                    labelBuilder: (c) => c.getDisplayName(),
+                    onToggle: (category) => ref
+                        .read(eventsFilterProvider.notifier)
+                        .toggle(category),
+                  ),
+                ),
+                if (showGroupFilter)
+                  const Flexible(child: GroupDropdown(featureKey: 'events')),
               ],
-              selectedCategories: selectedEventsFilters,
-              labelBuilder: (c) => c.getDisplayName(),
-              onToggle: (category) =>
-                  ref.read(eventsFilterProvider.notifier).toggle(category),
             ),
           ),
           const SizedBox(height: 16),
@@ -397,9 +424,9 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
                         createdAt: event.createdAt,
                         seenPosts: seenPosts,
                         isLoaded: ref.read(seenPostsProvider.notifier).isLoaded,
-                        firstLaunchDate: ref
+                        firstLoginAt: ref
                             .read(seenPostsProvider.notifier)
-                            .firstLaunchDate,
+                            .firstLoginAt,
                       ),
                   padding: const EdgeInsets.only(
                     left: 16,
@@ -418,4 +445,17 @@ class _EventsOverviewPageState extends ConsumerState<EventsOverviewPage>
       ),
     );
   }
+}
+
+/// Sortierreihenfolge innerhalb der drei `sortWithBadges`-Gruppen
+/// (`neu` / `gesehen` / `vorbei`):
+///  - Innerhalb „vorbei": jüngste vorbei-Events zuerst (DESC).
+///  - Innerhalb „neu" / „gesehen": nächstes Event zuerst (ASC).
+/// Macht die finale Reihenfolge unabhängig von der Eingabe-Reihenfolge —
+/// vorbei-Events landen so zuverlässig am Ende.
+int _eventOrder(EventEntry a, EventEntry b) {
+  if (a.isPast && b.isPast) {
+    return b.startTime.compareTo(a.startTime);
+  }
+  return a.startTime.compareTo(b.startTime);
 }

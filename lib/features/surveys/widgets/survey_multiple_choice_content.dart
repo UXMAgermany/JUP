@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:jup/features/surveys/models/custom_option_model.dart';
 import 'package:jup/features/surveys/models/survey_model.dart';
 import 'package:jup/features/surveys/widgets/survey_option_item.dart';
+import 'package:jup/features/surveys/widgets/survey_view_count.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:jup/shared/widgets/group_scope_meta.dart';
 import 'package:jup/shared/widgets/new_badge.dart';
 import 'package:jup/shared/widgets/text.dart';
 
@@ -63,9 +65,15 @@ class _SurveyMultipleChoiceContentState
           BodyMedium(
             text: widget.surveyEntry.subTitle!,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
-            overflow: TextOverflow.ellipsis,
-            maxLines: 2,
           ).withPaddingTop(4),
+        if (widget.surveyEntry.scopeGroupName != null &&
+            widget.surveyEntry.scopeGroupName!.isNotEmpty)
+          GroupScopeMeta(
+            groupName: widget.surveyEntry.scopeGroupName,
+          ).withPaddingTop(4),
+        if (widget.isJUPAdmin)
+          SurveyViewCount(viewCount: widget.surveyEntry.viewCount)
+              .withPaddingTop(4),
         const SizedBox(height: 16),
         if (widget.surveyEntry.type == SurveyType.election &&
             widget.status == SurveyStatus.active)

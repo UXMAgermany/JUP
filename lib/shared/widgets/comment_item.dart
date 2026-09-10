@@ -6,7 +6,7 @@ import 'package:jup/shared/utils/avatar_helper.dart';
 import 'package:jup/shared/widgets/report_bottom_sheet.dart';
 import 'package:jup/shared/widgets/text.dart';
 
-class CommentItem extends StatelessWidget {
+class CommentItem extends StatefulWidget {
   final Comment comment;
   final User? currentUser;
   final Future<void> Function()? onDelete;
@@ -18,21 +18,74 @@ class CommentItem extends StatelessWidget {
     this.onDelete,
   });
 
+  @override
+  State<CommentItem> createState() => _CommentItemState();
+}
+
+class _CommentItemState extends State<CommentItem> {
+  // Sowohl das PopupMenu („Löschen") als auch der Swipe (Dismissible) rufen
+  // `onDelete` auf. Dieser Guard stellt sicher, dass pro Item höchstens ein
+  // Lösch-Request abgeht — sonst könnte ein PopupMenu-Delete (das Item bleibt
+  // bis zum Reload stehen) plus ein nachträglicher Swipe `onDelete` doppelt
+  // feuern.
+  bool _isDeleting = false;
+
   void _showReportSheet(BuildContext context) {
     ReportBottomSheet.show(
       context,
       contentType: ReportContentType.comment,
-      contentId: comment.id.toString(),
-      contentPreview: comment.text.length > 100
-          ? '${comment.text.substring(0, 100)}...'
-          : comment.text,
+      contentId: widget.comment.id.toString(),
+      contentPreview: widget.comment.text.length > 100
+          ? '${widget.comment.text.substring(0, 100)}...'
+          : widget.comment.text,
     );
+  }
+
+  Future<bool?> _confirmDelete(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Kommentar löschen'),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: const Text(
+              'Möchtest du diesen Kommentar wirklich löschen?',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Abbrechen'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(
+                'Löschen',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _handleDelete() async {
+    if (_isDeleting || widget.onDelete == null) return;
+    _isDeleting = true;
+    await widget.onDelete!();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isJUPAdmin = currentUser?.isJUPAdmin ?? false;
-    final canDelete = isJUPAdmin && onDelete != null;
+    final isJUPAdmin = widget.currentUser?.isJUPAdmin ?? false;
+    final authorId = widget.comment.author?.id;
+    final isOwnComment =
+        authorId != null && widget.currentUser?.id == authorId;
+    final canDelete = (isJUPAdmin || isOwnComment) && widget.onDelete != null;
 
     final commentWidget = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -48,8 +101,8 @@ class CommentItem extends StatelessWidget {
             ),
             child: ClipOval(
               child: AvatarHelper.buildAvatar(
-                localAvatarId: comment.author?.localAvatarId,
-                cmsAvatarUrl: comment.author?.avatarPath,
+                localAvatarId: widget.comment.author?.localAvatarId,
+                cmsAvatarUrl: widget.comment.author?.avatarPath,
                 brightness: Theme.of(context).brightness,
                 size: 40,
               ),
@@ -61,14 +114,15 @@ class CommentItem extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    TitleMedium(text: comment.author?.nickname ?? 'Unbekannt'),
+                    TitleMedium(
+                        text: widget.comment.author?.nickname ?? 'Unbekannt'),
                     BodySmall(
-                      text: comment.getRelativeTime(),
+                      text: widget.comment.getRelativeTime(),
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ).withPaddingLeft(8),
                   ],
                 ),
-                BodyMedium(text: comment.text).withPaddingTop(4),
+                BodyMedium(text: widget.comment.text).withPaddingTop(4),
               ],
             ),
           ),
@@ -81,6 +135,21 @@ class CommentItem extends StatelessWidget {
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
             itemBuilder: (context) => [
+              if (canDelete)
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('Löschen'),
+                    ],
+                  ),
+                ),
               const PopupMenuItem(
                 value: 'report',
                 child: Row(
@@ -92,9 +161,14 @@ class CommentItem extends StatelessWidget {
                 ),
               ),
             ],
-            onSelected: (value) {
+            onSelected: (value) async {
               if (value == 'report') {
                 _showReportSheet(context);
+              } else if (value == 'delete' && canDelete) {
+                final confirmed = await _confirmDelete(context);
+                if (confirmed == true) {
+                  await _handleDelete();
+                }
               }
             },
           ),
@@ -105,7 +179,7 @@ class CommentItem extends StatelessWidget {
     if (!canDelete) return commentWidget;
 
     return Dismissible(
-      key: Key('comment_${comment.id}'),
+      key: Key('comment_${widget.comment.id}'),
       direction: DismissDirection.endToStart,
       background: Container(
         color: Theme.of(context).colorScheme.errorContainer,
@@ -116,39 +190,9 @@ class CommentItem extends StatelessWidget {
           color: Theme.of(context).colorScheme.onErrorContainer,
         ),
       ),
-      confirmDismiss: (direction) async {
-        return await showDialog<bool>(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Text('Kommentar löschen'),
-              content: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
-                child: const Text(
-                  'Möchtest du diesen Kommentar wirklich löschen?',
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('Abbrechen'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: Text(
-                    'Löschen',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      confirmDismiss: (direction) => _confirmDelete(context),
       onDismissed: (direction) async {
-        await onDelete!();
+        await _handleDelete();
       },
       child: commentWidget,
     );

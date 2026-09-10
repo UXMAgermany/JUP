@@ -33,6 +33,9 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# fvm: local Flutter SDK symlink/cache (.fvmrc stays tracked — it pins the version)
+.fvm/
+
 # Symbolication related
 app.*.symbols
 
@@ -62,18 +65,14 @@ SIGNING_CREDENTIALS.txt
 
 # Firebase config files (contains sensitive keys)
 /android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
+/android/app/src/main/res/values/values.xml
 firebase-debug.log
 .firebase/
 
 # iOS Fastlane secrets
 /ios/fastlane/api_key.json
 /ios/fastlane/AuthKey_*.p8
-
-# iOS Firebase config (contains sensitive keys)
-/ios/Runner/GoogleService-Info.plist
-
 /ios/.bundle
 /ios/vendor
 
-# CD/CI
-.gitlab-ci.yml

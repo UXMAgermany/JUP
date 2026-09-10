@@ -4,6 +4,7 @@ import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/features/events/controllers/events_provider.dart';
 import 'package:jup/features/events/models/event_model.dart';
 import 'package:jup/features/events/widgets/event_card.dart';
+import 'package:jup/shared/extensions/snackbar_extension.dart';
 
 class EventCardWrapper extends ConsumerWidget {
   final EventEntry event;
@@ -41,21 +42,32 @@ class EventCardWrapper extends ConsumerWidget {
       isParticipating: isEventParticipating,
       isParticipationLoading: participationState.isLoading,
       isPast: event.isPast,
+      isJUPAdmin: currentUser?.isJUPAdmin ?? false,
       onBookmarkTap: () {
         ref.read(authProvider.notifier).toggleEventBookmark(event.id);
       },
       onParticipateToggle: () async {
         if (userId == null) return;
-        await ref
-            .read(eventParticipationProvider(event.documentId).notifier)
-            .toggleParticipation(userId);
+        try {
+          await ref
+              .read(eventParticipationProvider(event.documentId).notifier)
+              .toggleParticipation(
+                userId: userId,
+                isCurrentlyParticipating: isEventParticipating,
+              );
 
-        // Update the events list with the new participation state
-        final updatedEvent = ref
-            .read(eventParticipationProvider(event.documentId))
-            .value;
-        if (updatedEvent != null) {
-          ref.read(eventsListProvider.notifier).updateEventInList(updatedEvent);
+          final updatedEvent = ref
+              .read(eventParticipationProvider(event.documentId))
+              .value;
+          if (updatedEvent != null) {
+            ref
+                .read(eventsListProvider.notifier)
+                .updateEventInList(updatedEvent);
+          }
+        } catch (e) {
+          if (context.mounted) {
+            context.showAppSnackbar('Hat nicht geklappt: $e');
+          }
         }
       },
       onTap: onTap,

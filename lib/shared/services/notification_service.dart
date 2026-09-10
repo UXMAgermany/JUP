@@ -3,16 +3,16 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:auto_route/auto_route.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'
     as firebase_messaging;
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:auto_route/auto_route.dart';
+import 'package:jup/router/controllers/app_router.gr.dart';
+import 'package:jup/shared/constants/notification_constants.dart';
 import 'package:jup/shared/models/notification_model.dart';
 import 'package:jup/shared/services/notification_settings_storage.dart';
-import 'package:jup/router/controllers/app_router.gr.dart';
-import 'package:jup/shared/screens/notification_detail_handler_page.dart';
-import 'package:jup/shared/constants/notification_constants.dart';
 
 // Top-level function for background message handling
 @pragma('vm:entry-point')
@@ -47,10 +47,10 @@ class NotificationService {
     bool Function()? isAuthenticated,
     Future<void> Function(String token)? onFcmTokenReceived,
     Future<void> Function()? onFcmTokenClear,
-  }) : _onSurveysRefreshNeeded = onSurveysRefreshNeeded,
-       _isAuthenticated = isAuthenticated,
-       _onFcmTokenReceived = onFcmTokenReceived,
-       _onFcmTokenClear = onFcmTokenClear;
+  })  : _onSurveysRefreshNeeded = onSurveysRefreshNeeded,
+        _isAuthenticated = isAuthenticated,
+        _onFcmTokenReceived = onFcmTokenReceived,
+        _onFcmTokenClear = onFcmTokenClear;
 
   /// Initialize the notification service.
   ///
@@ -65,8 +65,7 @@ class NotificationService {
   Future<void> initialize() async {
     try {
       final settings = await _firebaseMessaging.getNotificationSettings();
-      final isAuthorized =
-          settings.authorizationStatus ==
+      final isAuthorized = settings.authorizationStatus ==
           firebase_messaging.AuthorizationStatus.authorized;
       await _storage.setPermissionGranted(isAuthorized);
 
@@ -145,8 +144,7 @@ class NotificationService {
   Future<void> requestPermissionsAndSetup() async {
     try {
       final settings = await _requestPermissions();
-      final isAuthorized =
-          settings.authorizationStatus ==
+      final isAuthorized = settings.authorizationStatus ==
           firebase_messaging.AuthorizationStatus.authorized;
       await _storage.setPermissionGranted(isAuthorized);
       if (!isAuthorized) return;
@@ -251,8 +249,7 @@ class NotificationService {
 
     await _localNotifications
         .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(androidChannel);
   }
 
@@ -366,13 +363,13 @@ class NotificationService {
       switch (type) {
         case NotificationType.news:
         case NotificationType.shorts:
-          context.router.navigate(const NewsNavigationRoute());
+          context.router.navigate(const NewsOverviewRoute());
           break;
         case NotificationType.events:
-          context.router.navigate(const EventsNavigationRoute());
+          context.router.navigate(const EventsOverviewRoute());
           break;
         case NotificationType.surveys:
-          context.router.navigate(const SurveysNavigationRoute());
+          context.router.navigate(const SurveysOverviewRoute());
           break;
       }
       return;
@@ -381,7 +378,7 @@ class NotificationService {
     // Surveys always go to overview (no detail page)
     if (type == NotificationType.surveys) {
       _onSurveysRefreshNeeded?.call();
-      context.router.navigate(const SurveysNavigationRoute());
+      context.router.navigate(const SurveysOverviewRoute());
       return;
     }
 
@@ -395,13 +392,13 @@ class NotificationService {
       return;
     }
 
-    // If contentId exists, navigate to detail page
+    // If contentId exists, navigate to detail page via the registered
+    // top-level auto_route. Mixing Material Navigator API with auto_route's
+    // tab stack caused canPop=true on the active tab (MainPage hid its AppBar)
+    // and racy pop/navigate sequences in the handler.
     if (contentId != null) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) =>
-              NotificationDetailHandlerPage(type: type, contentId: contentId),
-        ),
+      context.router.push(
+        NotificationDetailHandlerRoute(type: type, contentId: contentId),
       );
       return;
     }
@@ -409,16 +406,16 @@ class NotificationService {
     // No contentId: Navigate to overview
     switch (type) {
       case NotificationType.news:
-        context.router.navigate(const NewsNavigationRoute());
+        context.router.navigate(const NewsOverviewRoute());
         break;
       case NotificationType.events:
-        context.router.navigate(const EventsNavigationRoute());
+        context.router.navigate(const EventsOverviewRoute());
         break;
       case NotificationType.surveys:
-        context.router.navigate(const SurveysNavigationRoute());
+        context.router.navigate(const SurveysOverviewRoute());
         break;
       case NotificationType.shorts:
-        context.router.navigate(const NewsNavigationRoute());
+        context.router.navigate(const NewsOverviewRoute());
         break;
     }
   }

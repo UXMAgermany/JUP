@@ -40,6 +40,24 @@ extension NewsCategoryExtension on NewsCategory {
     return toString().split('.').last;
   }
 
+  /// CMS-Enum schreibt `sports` (Plural), unsere Dart-Enum hat `sport`
+  /// (Singular). `diy` existiert app-seitig als Legacy-Fallback und wird
+  /// beim Schreiben auf `other` gemappt — das CMS kennt es nicht.
+  String toCmsValue() {
+    switch (this) {
+      case NewsCategory.sport:
+        return 'sports';
+      case NewsCategory.diy:
+        return 'other';
+      case NewsCategory.music:
+      case NewsCategory.events:
+      case NewsCategory.food:
+      case NewsCategory.gaming:
+      case NewsCategory.other:
+        return toJson();
+    }
+  }
+
   String get displayLabel {
     switch (this) {
       case NewsCategory.sport:
@@ -68,11 +86,19 @@ class NewsEntry {
   final String text;
   final String? author;
   final DateTime createdAt;
+
   /// Scheduled visibility time (custom CMS field). Null for immediate publish.
   /// Used as primary sort key; falls back to createdAt when null.
   final DateTime? publishAt;
   final String? imageUrl;
   final List<NewsContentBlock> contentBlocks;
+  final int viewCount;
+
+  /// Optionale Gruppen-Bindung. Null bedeutet global („Alle"). Wenn gesetzt,
+  /// stammt der Beitrag aus dieser Gruppe und wird in der App-Karte als
+  /// Meta-Zeile angezeigt.
+  final String? scopeGroupDocumentId;
+  final String? scopeGroupName;
 
   NewsEntry({
     required this.documentId,
@@ -85,6 +111,9 @@ class NewsEntry {
     this.publishAt,
     this.imageUrl,
     this.contentBlocks = const [],
+    this.viewCount = 0,
+    this.scopeGroupDocumentId,
+    this.scopeGroupName,
   });
 
   /// Effective visibility time used for sorting.
@@ -107,12 +136,18 @@ class NewsEntry {
     if (rawBlocks is List) {
       for (final raw in rawBlocks) {
         if (raw is! Map) continue;
-        final block = NewsContentBlock.fromJson(
-          raw.cast<String, dynamic>(),
-        );
+        final block = NewsContentBlock.fromJson(raw.cast<String, dynamic>());
         if (block != null) blocks.add(block);
       }
     }
+
+    final groupJson = json['group'];
+    final scopeGroupDocumentId = groupJson is Map
+        ? groupJson['documentId'] as String?
+        : null;
+    final scopeGroupName = groupJson is Map
+        ? groupJson['name'] as String?
+        : null;
 
     return NewsEntry(
       documentId: json['documentId'] as String,
@@ -129,23 +164,43 @@ class NewsEntry {
           ? baseUrl + (json['image']['url'] as String)
           : null,
       contentBlocks: blocks,
+      viewCount: json['viewCount'] as int? ?? 0,
+      scopeGroupDocumentId: scopeGroupDocumentId,
+      scopeGroupName: scopeGroupName,
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'documentId': documentId,
-      'category': category.toJson(),
-      'title': title,
-      'subTitle': subTitle,
-      'text': text,
-      'author': author,
-      'createdAt': createdAt.toIso8601String(),
-      'publishAt': publishAt?.toIso8601String(),
-      'imageUrl': imageUrl,
-    };
+  NewsEntry copyWith({
+    String? documentId,
+    NewsCategory? category,
+    String? title,
+    String? subTitle,
+    String? text,
+    String? author,
+    DateTime? createdAt,
+    DateTime? publishAt,
+    String? imageUrl,
+    List<NewsContentBlock>? contentBlocks,
+    int? viewCount,
+    String? scopeGroupDocumentId,
+    String? scopeGroupName,
+  }) {
+    return NewsEntry(
+      documentId: documentId ?? this.documentId,
+      category: category ?? this.category,
+      title: title ?? this.title,
+      subTitle: subTitle ?? this.subTitle,
+      text: text ?? this.text,
+      author: author ?? this.author,
+      createdAt: createdAt ?? this.createdAt,
+      publishAt: publishAt ?? this.publishAt,
+      imageUrl: imageUrl ?? this.imageUrl,
+      contentBlocks: contentBlocks ?? this.contentBlocks,
+      viewCount: viewCount ?? this.viewCount,
+      scopeGroupDocumentId: scopeGroupDocumentId ?? this.scopeGroupDocumentId,
+      scopeGroupName: scopeGroupName ?? this.scopeGroupName,
+    );
   }
-
 }
 
 /// CMS-Strapi DynamicZone block. Each subtype carries its `__component`
@@ -185,6 +240,7 @@ class NewsTextBlock extends NewsContentBlock {
 
 class NewsMediaBlock extends NewsContentBlock {
   final int mediaId;
+
   /// Populated when reading from the CMS; `null` on the create path.
   final StrapiFile? media;
   NewsMediaBlock({required this.mediaId, this.media});
@@ -194,67 +250,4 @@ class NewsMediaBlock extends NewsContentBlock {
     '__component': 'news.media-block',
     'media': mediaId,
   };
-}
-
-/// Input model for creating a new news entry via the Strapi API.
-class NewsCreateInput {
-  final String title;
-  final String? subTitle;
-  final NewsCategory category;
-  final int? imageMediaId;
-  final DateTime? publishAt;
-  final List<NewsContentBlock> contentBlocks;
-
-  NewsCreateInput({
-    required this.title,
-    this.subTitle,
-    required this.category,
-    required this.contentBlocks,
-    this.imageMediaId,
-    this.publishAt,
-  });
-
-  /// Strapi expects the payload wrapped in `{ data: { ... } }`.
-  /// Returns the inner `data` map; callers wrap it themselves.
-  Map<String, dynamic> toCreateBody() {
-    final body = <String, dynamic>{
-      'title': title,
-      'category': _categoryToCmsValue(category),
-      'contentBlocks': contentBlocks.map((b) => b.toCmsJson()).toList(),
-    };
-    // Mirror the lead text into the legacy `text` field so consumers that
-    // haven't been migrated to read `contentBlocks` yet still show content.
-    final firstText = contentBlocks.whereType<NewsTextBlock>().firstOrNull;
-    if (firstText != null && firstText.body.isNotEmpty) {
-      body['text'] = firstText.body;
-    }
-    if (subTitle != null && subTitle!.isNotEmpty) {
-      body['subTitle'] = subTitle;
-    }
-    if (imageMediaId != null) {
-      body['image'] = imageMediaId;
-    }
-    if (publishAt != null) {
-      body['publishAt'] = publishAt!.toUtc().toIso8601String();
-    }
-    return body;
-  }
-
-  /// CMS enum uses 'sports' (plural) but Dart enum is `sport` (singular).
-  /// Other values map identically; `diy` is an app-only value (not in CMS enum)
-  /// and falls back to `other`.
-  static String _categoryToCmsValue(NewsCategory category) {
-    switch (category) {
-      case NewsCategory.sport:
-        return 'sports';
-      case NewsCategory.diy:
-        return 'other';
-      case NewsCategory.music:
-      case NewsCategory.events:
-      case NewsCategory.food:
-      case NewsCategory.gaming:
-      case NewsCategory.other:
-        return category.toJson();
-    }
-  }
 }

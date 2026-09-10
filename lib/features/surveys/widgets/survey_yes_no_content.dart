@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:jup/features/surveys/models/survey_model.dart';
+import 'package:jup/features/surveys/widgets/survey_view_count.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:jup/shared/widgets/group_scope_meta.dart';
 import 'package:jup/shared/widgets/new_badge.dart';
 import 'package:jup/shared/widgets/text.dart';
 
@@ -11,6 +13,7 @@ class SurveyYesNoContent extends StatelessWidget {
   final bool hasVoted;
   final bool showResults;
   final bool isNew;
+  final bool isJUPAdmin;
   final bool? optimisticVote;
   final int? userId;
   final VoidCallback? onVoteYes;
@@ -23,6 +26,7 @@ class SurveyYesNoContent extends StatelessWidget {
     required this.hasVoted,
     required this.showResults,
     required this.isNew,
+    this.isJUPAdmin = false,
     this.optimisticVote,
     this.userId,
     this.onVoteYes,
@@ -44,9 +48,14 @@ class SurveyYesNoContent extends StatelessWidget {
           BodyMedium(
             text: surveyEntry.subTitle!,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
-            overflow: TextOverflow.ellipsis,
-            maxLines: 2,
           ).withPaddingTop(4),
+        if (surveyEntry.scopeGroupName != null &&
+            surveyEntry.scopeGroupName!.isNotEmpty)
+          GroupScopeMeta(groupName: surveyEntry.scopeGroupName).withPaddingTop(
+            4,
+          ),
+        if (isJUPAdmin)
+          SurveyViewCount(viewCount: surveyEntry.viewCount).withPaddingTop(4),
         const SizedBox(height: 16),
         _buildVoteButtons(context, userVotedYes, userVotedNo),
       ],
@@ -110,7 +119,6 @@ class SurveyYesNoContent extends StatelessWidget {
               assetPath: 'assets/icons/no.svg',
               isSelected: hasVoted && userVotedNo,
               onTap: onVoteNo,
-              useWhiteWhenSelected: true,
             ),
           ],
         ),
@@ -143,7 +151,6 @@ class SurveyYesNoContent extends StatelessWidget {
     required String assetPath,
     required bool isSelected,
     required VoidCallback? onTap,
-    bool useWhiteWhenSelected = false,
   }) {
     return InkWell(
       onTap: onTap,
@@ -166,9 +173,7 @@ class SurveyYesNoContent extends StatelessWidget {
             width: 45,
             colorFilter: ColorFilter.mode(
               isSelected
-                  ? (useWhiteWhenSelected
-                      ? Colors.white
-                      : Theme.of(context).colorScheme.onPrimary)
+                  ? Theme.of(context).colorScheme.onPrimary
                   : Theme.of(context).colorScheme.onSurface,
               BlendMode.srcIn,
             ),

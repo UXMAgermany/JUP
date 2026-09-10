@@ -1,5 +1,6 @@
 class User {
   final int id;
+  final String? documentId;
   final DateTime registerDate;
   final String nickname;
   final String email;
@@ -10,10 +11,12 @@ class User {
   final DateTime? birthday;
   final List<int> savedEvents;
   final bool isJUPAdmin;
+  final bool canCreateGroup;
   final bool trackingEnabled;
 
   User({
     required this.id,
+    this.documentId,
     required this.registerDate,
     required this.nickname,
     required this.email,
@@ -24,6 +27,7 @@ class User {
     this.birthday,
     this.savedEvents = const [],
     required this.isJUPAdmin,
+    this.canCreateGroup = false,
     this.trackingEnabled = false,
   });
 
@@ -68,6 +72,7 @@ class User {
 
     return User(
       id: rawUser['id'] as int,
+      documentId: rawUser['documentId'] as String?,
       nickname: rawUser['username'] ?? '',
       firstname: rawUser['firstname'] ?? '',
       lastname: rawUser['lastname'] ?? '',
@@ -80,6 +85,7 @@ class User {
           : null,
       savedEvents: savedEventIds,
       isJUPAdmin: rawUser['isJUPAdmin'] ?? false,
+      canCreateGroup: rawUser['canCreateGroup'] ?? false,
       trackingEnabled: rawUser['trackingEnabled'] ?? false,
     );
   }

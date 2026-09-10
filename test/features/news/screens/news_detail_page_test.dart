@@ -10,7 +10,7 @@ import '../../../helpers/mock_strapi_client.mocks.dart';
 
 class TestNewsListNotifier extends NewsListNotifier {
   TestNewsListNotifier(AsyncValue<List<NewsEntry>> testState)
-    : super(NewsController(MockStrapiClient())) {
+    : super(NewsController(MockStrapiClient()), useUserAuth: false) {
     state = testState;
   }
 }

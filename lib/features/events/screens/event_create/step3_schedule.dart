@@ -6,8 +6,8 @@ import 'package:jup/shared/widgets/toggle_button.dart';
 
 /// Step 3 des Event-Create-Wizards. Folgt eigenem Figma-Design
 /// (Node 61311:66961): Ort als TextField, Datum + Uhrzeit als Picker-
-/// gestützte InputDecorator, Wiederholung & Ablaufdatum als Switches mit
-/// conditional reveal.
+/// gestützte InputDecorator, Wiederholung & (bei aktiver Wiederholung)
+/// Enddatum der Serie als Switches mit conditional reveal.
 class EventCreateStep3Schedule extends StatefulWidget {
   final EventCreateFormState state;
   final ValueChanged<String> onLocationChanged;
@@ -17,6 +17,8 @@ class EventCreateStep3Schedule extends StatefulWidget {
   final ValueChanged<EventRepeatType> onRepeatsChanged;
   final ValueChanged<bool> onToggleExpiresAt;
   final VoidCallback onPickExpiresAt;
+  final ValueChanged<bool> onToggleSignupClosesAt;
+  final VoidCallback onPickSignupClosesAt;
 
   const EventCreateStep3Schedule({
     super.key,
@@ -28,6 +30,8 @@ class EventCreateStep3Schedule extends StatefulWidget {
     required this.onRepeatsChanged,
     required this.onToggleExpiresAt,
     required this.onPickExpiresAt,
+    required this.onToggleSignupClosesAt,
+    required this.onPickSignupClosesAt,
   });
 
   @override
@@ -88,6 +92,20 @@ class _EventCreateStep3ScheduleState extends State<EventCreateStep3Schedule> {
           ),
           const SizedBox(height: 24),
           _SwitchRow(
+            label: 'Soll es einen Anmeldeschluss geben?',
+            value: state.signupClosesAtEnabled,
+            onChanged: widget.onToggleSignupClosesAt,
+          ),
+          if (state.signupClosesAtEnabled) ...[
+            const SizedBox(height: 12),
+            DatePickerField(
+              label: 'Anmeldeschluss',
+              value: state.signupClosesAt,
+              onTap: widget.onPickSignupClosesAt,
+            ),
+          ],
+          const SizedBox(height: 24),
+          _SwitchRow(
             label: 'Soll sich das Event wiederholen?',
             value: state.repeatsEnabled,
             onChanged: widget.onToggleRepeats,
@@ -112,20 +130,20 @@ class _EventCreateStep3ScheduleState extends State<EventCreateStep3Schedule> {
                 );
               }).toList(),
             ),
-          ],
-          const SizedBox(height: 24),
-          _SwitchRow(
-            label: 'Hat das Event ein Ablaufdatum?',
-            value: state.expiresAtEnabled,
-            onChanged: widget.onToggleExpiresAt,
-          ),
-          if (state.expiresAtEnabled) ...[
-            const SizedBox(height: 12),
-            DatePickerField(
-              label: 'Ablaufdatum',
-              value: state.expiresAt,
-              onTap: widget.onPickExpiresAt,
+            const SizedBox(height: 24),
+            _SwitchRow(
+              label: 'Soll es ein Enddatum geben?',
+              value: state.expiresAtEnabled,
+              onChanged: widget.onToggleExpiresAt,
             ),
+            if (state.expiresAtEnabled) ...[
+              const SizedBox(height: 12),
+              DatePickerField(
+                label: 'Enddatum',
+                value: state.expiresAt,
+                onTap: widget.onPickExpiresAt,
+              ),
+            ],
           ],
         ],
       ),

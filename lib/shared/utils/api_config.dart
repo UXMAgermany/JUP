@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:jup/shared/utils/env_config.dart';
 
 class ApiConfig {

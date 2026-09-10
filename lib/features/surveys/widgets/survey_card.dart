@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jup/features/achievements/controllers/achievement_check.dart';
 import 'package:jup/features/surveys/controllers/surveys_provider.dart';
 import 'package:jup/features/surveys/models/custom_option_model.dart';
 import 'package:jup/features/surveys/models/survey_model.dart';
@@ -8,6 +9,7 @@ import 'package:jup/features/surveys/widgets/survey_card_image.dart';
 import 'package:jup/features/surveys/widgets/survey_dialogs.dart';
 import 'package:jup/features/surveys/widgets/survey_multiple_choice_content.dart';
 import 'package:jup/features/surveys/widgets/survey_yes_no_content.dart';
+import 'package:jup/shared/extensions/snackbar_extension.dart';
 import 'package:jup/shared/models/app_exception.dart';
 import 'package:jup/shared/widgets/comment_section.dart';
 import 'package:jup/shared/widgets/text.dart';
@@ -66,8 +68,7 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
     } catch (e) {
       if (mounted) {
         setState(() => _optimisticYesNoVote = null);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        context.showAppSnackbar('Fehler: $e');
       }
     }
   }
@@ -91,12 +92,14 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
           .markVotedInSession(widget.surveyEntry.documentId);
       ref.read(surveysListProvider.notifier).updateSurveyInList(updatedSurvey);
 
-      if (mounted) setState(() => _optimisticMultipleChoiceVote = null);
+      if (mounted) {
+        setState(() => _optimisticMultipleChoiceVote = null);
+        await runAchievementCheck(context, ref, keys: ['allgemein.stimmstark']);
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _optimisticMultipleChoiceVote = null);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        context.showAppSnackbar('Fehler: $e');
       }
     }
   }
@@ -128,12 +131,13 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
         }
 
         setState(() => _optimisticElectionVotes.clear());
+        await runAchievementCheck(context, ref,
+            keys: ['special.demokratiebewusst', 'allgemein.stimmstark']);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _optimisticElectionVotes.remove(optionText));
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        context.showAppSnackbar('Fehler: $e');
       }
     }
   }
@@ -146,6 +150,7 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
       await controller.voteOnCustomOption(customOption.documentId);
       final updatedSurvey = await controller.fetchSurveyById(
         widget.surveyEntry.documentId,
+        useUserAuth: true,
       );
       ref
           .read(surveysListProvider.notifier)
@@ -153,10 +158,10 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
       ref.read(surveysListProvider.notifier).updateSurveyInList(updatedSurvey);
     } catch (e) {
       if (mounted) {
-        final message =
-            e is AppException ? e.message : 'Ein Fehler ist aufgetreten.';
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(message)));
+        final message = e is AppException
+            ? e.message
+            : 'Ein Fehler ist aufgetreten.';
+        context.showAppSnackbar(message);
       }
     }
   }
@@ -187,8 +192,10 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
     try {
       final controller = ref.read(surveysControllerProvider);
       await review(controller);
-      final updatedSurvey =
-          await controller.fetchSurveyById(widget.surveyEntry.documentId);
+      final updatedSurvey = await controller.fetchSurveyById(
+        widget.surveyEntry.documentId,
+        useUserAuth: true,
+      );
       ref.read(surveysListProvider.notifier).updateSurveyInList(updatedSurvey);
 
       if (mounted) {
@@ -205,10 +212,10 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
         setState(
           () => _optimisticallyHandledPendingDocIds.remove(option.documentId),
         );
-        final message =
-            e is AppException ? e.message : 'Ein Fehler ist aufgetreten.';
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(message)));
+        final message = e is AppException
+            ? e.message
+            : 'Ein Fehler ist aufgetreten.';
+        context.showAppSnackbar(message);
       }
     }
   }
@@ -217,33 +224,31 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
     try {
       final controller = ref.read(surveysControllerProvider);
       await controller.undoCustomOptionReview(option.documentId);
-      final updatedSurvey =
-          await controller.fetchSurveyById(widget.surveyEntry.documentId);
+      final updatedSurvey = await controller.fetchSurveyById(
+        widget.surveyEntry.documentId,
+        useUserAuth: true,
+      );
       ref.read(surveysListProvider.notifier).updateSurveyInList(updatedSurvey);
     } catch (e) {
       if (mounted) {
-        final message =
-            e is AppException ? e.message : 'Rückgängig nicht möglich.';
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(message)));
+        final message = e is AppException
+            ? e.message
+            : 'Rückgängig nicht möglich.';
+        context.showAppSnackbar(message);
       }
     }
   }
 
   void _showReviewSnackbar(String message, VoidCallback onUndo) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    const displayDuration = Duration(seconds: 5);
-    final controller = messenger.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        action: SnackBarAction(label: 'Rückgängig', onPressed: onUndo),
-        duration: displayDuration,
-      ),
+    const duration = SnackbarX.defaultSnackbarDuration;
+    final controller = context.showAppSnackbar(
+      message,
+      action: SnackBarAction(label: 'Rückgängig', onPressed: onUndo),
+      duration: duration,
     );
     // Flutter überspringt seinen Auto-Hide-Timer, wenn accessibleNavigation
     // aktiv ist und ein SnackBarAction gesetzt ist. Eigener Timer als Fallback.
-    Future.delayed(displayDuration, controller.close);
+    Future.delayed(duration, controller.close);
   }
 
   VoidCallback? _resolveOptionTap(
@@ -252,7 +257,8 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
     bool hasVoted,
   ) {
     final isElection = widget.surveyEntry.type == SurveyType.election;
-    final isOptionAlreadyVoted = isElection &&
+    final isOptionAlreadyVoted =
+        isElection &&
         (_optimisticElectionVotes.contains(option.text) ||
             option.currentUserVoted);
 
@@ -271,35 +277,37 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
 
     final hasVoted = switch (widget.surveyEntry.type) {
       SurveyType.election => () {
-          if (widget.userId == null) return false;
-          final serverVotes = widget.surveyEntry.options
-                  ?.where((o) => o.currentUserVoted)
-                  .length ??
-              0;
-          return (serverVotes + _optimisticElectionVotes.length) >=
-              widget.surveyEntry.maxVotes;
-        }(),
-      SurveyType.yesNo => _optimisticYesNoVote != null ||
-          (widget.userId != null &&
-              widget.surveyEntry.hasUserVoted(widget.userId!)),
-      SurveyType.multiple => _optimisticMultipleChoiceVote != null ||
-          (widget.userId != null &&
-              widget.surveyEntry.hasUserVoted(widget.userId!)),
+        if (widget.userId == null) return false;
+        final serverVotes =
+            widget.surveyEntry.options
+                ?.where((o) => o.currentUserVoted)
+                .length ??
+            0;
+        return (serverVotes + _optimisticElectionVotes.length) >=
+            widget.surveyEntry.maxVotes;
+      }(),
+      SurveyType.yesNo =>
+        _optimisticYesNoVote != null ||
+            (widget.userId != null &&
+                widget.surveyEntry.hasUserVoted(widget.userId!)),
+      SurveyType.multiple =>
+        _optimisticMultipleChoiceVote != null ||
+            (widget.userId != null &&
+                widget.surveyEntry.hasUserVoted(widget.userId!)),
     };
 
     final showResults = switch (widget.surveyEntry.type) {
       SurveyType.election => status == SurveyStatus.expired,
       SurveyType.yesNo => hasVoted || status == SurveyStatus.expired,
       SurveyType.multiple => () {
-          if (status == SurveyStatus.expired) return true;
-          if (widget.userId == null) return false;
-          final serverVoteCount =
-              widget.surveyEntry.getUserVoteCount(widget.userId!);
-          final optimisticAdd =
-              _optimisticMultipleChoiceVote != null ? 1 : 0;
-          return (serverVoteCount + optimisticAdd) >=
-              widget.surveyEntry.maxVotes;
-        }(),
+        if (status == SurveyStatus.expired) return true;
+        if (widget.userId == null) return false;
+        final serverVoteCount = widget.surveyEntry.getUserVoteCount(
+          widget.userId!,
+        );
+        final optimisticAdd = _optimisticMultipleChoiceVote != null ? 1 : 0;
+        return (serverVoteCount + optimisticAdd) >= widget.surveyEntry.maxVotes;
+      }(),
     };
 
     VoidCallback? yesNoTapHandler(bool voteYes) {
@@ -332,6 +340,7 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
                     hasVoted: hasVoted,
                     showResults: showResults,
                     isNew: widget.isNew,
+                    isJUPAdmin: widget.isJUPAdmin,
                     optimisticVote: _optimisticYesNoVote,
                     userId: widget.userId,
                     onVoteYes: yesNoTapHandler(true),
@@ -354,8 +363,10 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
                         _resolveOptionTap(option, status, hasVoted),
                     onCustomOptionTap: widget.userId != null
                         ? () => CustomOptionSheet.show(
-                            context, widget.surveyEntry.documentId,
-                            isJUPAdmin: widget.isJUPAdmin)
+                            context,
+                            widget.surveyEntry.documentId,
+                            isJUPAdmin: widget.isJUPAdmin,
+                          )
                         : widget.onLoginRequired,
                     onCustomOptionVoteTap: (customOption) {
                       if (widget.userId == null) return widget.onLoginRequired;
@@ -391,23 +402,26 @@ class _SurveyCardState extends ConsumerState<SurveyCard> {
               disabled: status == SurveyStatus.expired,
               onSubmitComment:
                   (documentId, text, userId, currentComments) async {
-                final controller = ref.read(surveysControllerProvider);
-                final updatedSurvey = await controller.addComment(
-                  documentId,
-                  text,
-                  userId,
-                  currentComments,
-                );
-                ref
-                    .read(surveysListProvider.notifier)
-                    .updateSurveyInList(updatedSurvey);
-              },
+                    final controller = ref.read(surveysControllerProvider);
+                    final updatedSurvey = await controller.addComment(
+                      documentId,
+                      text,
+                      userId,
+                      currentComments,
+                    );
+                    ref
+                        .read(surveysListProvider.notifier)
+                        .updateSurveyInList(updatedSurvey);
+                    if (context.mounted) {
+                      await runAchievementCheck(context, ref,
+                          keys: ['allgemein.wortgewandt']);
+                    }
+                  },
               onDeleteComment: (documentId, commentId, currentComments) async {
                 final controller = ref.read(surveysControllerProvider);
                 final updatedSurvey = await controller.deleteComment(
                   documentId,
                   commentId,
-                  currentComments,
                 );
                 ref
                     .read(surveysListProvider.notifier)

@@ -52,10 +52,11 @@ void main() {
       expect(state.isAuthenticated, false);
     });
 
-    test('isAuthenticated should return false when user is missing', () {
+    test('isAuthenticated should return true with jwt even when user is null '
+        '(offline-init: user gets backfilled by loadSession once online)', () {
       const state = AuthState(jwt: 'test-token', user: null);
 
-      expect(state.isAuthenticated, false);
+      expect(state.isAuthenticated, true);
     });
 
     test('isAuthenticated should return false when both are missing', () {

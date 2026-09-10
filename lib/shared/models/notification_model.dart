@@ -67,31 +67,49 @@ class NotificationSettings {
   final bool eventsEnabled;
   final bool surveysEnabled;
   final bool permissionGranted;
+  // "Meine Gruppen" prefs — control direct pushes for group-scoped content.
+  // Synced to the backend (the server decides delivery), unlike the JUZ toggles
+  // above which only drive local topic subscriptions.
+  final bool groupNewsEnabled;
+  final bool groupEventsEnabled;
+  final bool groupSurveysEnabled;
 
   const NotificationSettings({
     required this.newsEnabled,
     required this.eventsEnabled,
     required this.surveysEnabled,
     required this.permissionGranted,
+    required this.groupNewsEnabled,
+    required this.groupEventsEnabled,
+    required this.groupSurveysEnabled,
   });
 
   const NotificationSettings.defaultSettings()
     : newsEnabled = true,
       eventsEnabled = true,
       surveysEnabled = true,
-      permissionGranted = false;
+      permissionGranted = false,
+      groupNewsEnabled = true,
+      groupEventsEnabled = true,
+      groupSurveysEnabled = true;
 
   NotificationSettings copyWith({
     bool? newsEnabled,
     bool? eventsEnabled,
     bool? surveysEnabled,
     bool? permissionGranted,
+    bool? groupNewsEnabled,
+    bool? groupEventsEnabled,
+    bool? groupSurveysEnabled,
   }) {
     return NotificationSettings(
       newsEnabled: newsEnabled ?? this.newsEnabled,
       eventsEnabled: eventsEnabled ?? this.eventsEnabled,
       surveysEnabled: surveysEnabled ?? this.surveysEnabled,
       permissionGranted: permissionGranted ?? this.permissionGranted,
+      groupNewsEnabled: groupNewsEnabled ?? this.groupNewsEnabled,
+      groupEventsEnabled: groupEventsEnabled ?? this.groupEventsEnabled,
+      groupSurveysEnabled: groupSurveysEnabled ?? this.groupSurveysEnabled,
     );
   }
 
@@ -101,6 +119,9 @@ class NotificationSettings {
       'eventsEnabled': eventsEnabled,
       'surveysEnabled': surveysEnabled,
       'permissionGranted': permissionGranted,
+      'groupNewsEnabled': groupNewsEnabled,
+      'groupEventsEnabled': groupEventsEnabled,
+      'groupSurveysEnabled': groupSurveysEnabled,
     };
   }
 
@@ -110,6 +131,9 @@ class NotificationSettings {
       eventsEnabled: json['eventsEnabled'] as bool? ?? true,
       surveysEnabled: json['surveysEnabled'] as bool? ?? true,
       permissionGranted: json['permissionGranted'] as bool? ?? false,
+      groupNewsEnabled: json['groupNewsEnabled'] as bool? ?? true,
+      groupEventsEnabled: json['groupEventsEnabled'] as bool? ?? true,
+      groupSurveysEnabled: json['groupSurveysEnabled'] as bool? ?? true,
     );
   }
 

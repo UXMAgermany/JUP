@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:jup/features/achievements/controllers/scan_launcher.dart';
 import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/features/events/controllers/events_provider.dart';
 import 'package:jup/features/news/controllers/news_provider.dart';
@@ -30,6 +31,10 @@ String mapNavigationLabel(NavigationElement type) {
       return "Events";
     case NavigationElement.surveys:
       return "Umfragen";
+    case NavigationElement.achievements:
+      return "Achievements";
+    case NavigationElement.groups:
+      return "Gruppen";
     case NavigationElement.profile:
       return "Profil";
     case NavigationElement.help:
@@ -47,6 +52,12 @@ Icon mapNavigationIcon(NavigationElement type, bool isActive) {
       return isActive
           ? Icon(Icons.leaderboard)
           : Icon(Icons.leaderboard_outlined);
+    case NavigationElement.achievements:
+      return isActive
+          ? Icon(Icons.emoji_events)
+          : Icon(Icons.emoji_events_outlined);
+    case NavigationElement.groups:
+      return isActive ? Icon(Icons.groups) : Icon(Icons.groups_outlined);
     case NavigationElement.profile:
       return isActive ? Icon(Icons.person_2) : Icon(Icons.person_2_outlined);
     case NavigationElement.help:
@@ -58,6 +69,8 @@ List<NavigationElement> firstLevelDestinations = [
   NavigationElement.news,
   NavigationElement.events,
   NavigationElement.surveys,
+  NavigationElement.achievements,
+  NavigationElement.groups,
   NavigationElement.help,
   NavigationElement.profile,
 ];
@@ -68,6 +81,20 @@ List<NavigationElement> firstLevelDestinations = [
 /// reordered.
 int tabIndexOf(NavigationElement element) =>
     firstLevelDestinations.indexOf(element);
+
+/// Liefert einen AppBar-Titel für Sub-Routes, die keine eigene AppBar rendern
+/// und deshalb auf die zentrale [MainAppBar] angewiesen sind. Gibt `null`
+/// zurück, wenn die Sub-Route ihre eigene AppBar mitbringt.
+String? _appBarTitleForSubRoute(String? routeName) {
+  switch (routeName) {
+    case LoginRoute.name:
+      return 'Einloggen';
+    case RegisterRoute.name:
+      return 'Erstelle deinen Account';
+    default:
+      return null;
+  }
+}
 
 @RoutePage()
 class MainPage extends ConsumerStatefulWidget {
@@ -82,17 +109,56 @@ class _MainPageState extends ConsumerState<MainPage> {
     NewsNavigationRoute(),
     EventsNavigationRoute(),
     SurveysNavigationRoute(),
+    AchievementsNavigationRoute(),
+    GroupsNavigationRoute(),
     HelpNavigationRoute(),
     ProfileNavigationRoute(),
+  ];
+
+  // Order must mirror `_tabs` and the `initial: true` children defined in
+  // `app_router.dart`. Used to reset each tab's substack on login.
+  static const List<PageRouteInfo> _tabInitialChildren = <PageRouteInfo>[
+    NewsOverviewRoute(),
+    EventsOverviewRoute(),
+    SurveysOverviewRoute(),
+    AchievementsLandingRoute(),
+    GroupsOverviewRoute(),
+    HelpRoute(),
+    ProfileRoute(),
   ];
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   bool _initialIndexSet = false;
   bool _cleanupDone = false;
+  TabsRouter? _tabsRouter;
 
   @override
   Widget build(BuildContext context) {
+    // Reset all tab substacks when the user transitions from logged-out to
+    // logged-in. The logout flow (profile_settings_page.dart) pushes
+    // AuthRoute into the Profile substack; without this reset, that route
+    // survives a root-level replaceAll([MainRoute()]) and the Profile tab
+    // keeps showing AuthPage even after a successful login.
+    //
+    // `stackRouterOfIndex(i)` is null for tabs that were never activated
+    // (AutoTabsRouter lazy-initialisiert). Diese Tabs haben per Definition
+    // keine Stale-Sub-Routes — der `?.` ist also bewusst und kein Bug.
+    ref.listen<bool>(
+      authProvider.select((auth) => auth.isAuthenticated),
+      (previous, next) {
+        if (previous == false && next == true) {
+          final tabs = _tabsRouter;
+          if (tabs == null) return;
+          for (var i = 0; i < _tabs.length; i++) {
+            tabs
+                .stackRouterOfIndex(i)
+                ?.replaceAll([_tabInitialChildren[i]]);
+          }
+        }
+      },
+    );
+
     final brightness = Theme.of(context).brightness;
     final backgroundPath = ref.watch(backgroundProvider).resolve(brightness);
 
@@ -149,6 +215,7 @@ class _MainPageState extends ConsumerState<MainPage> {
       routes: _tabs,
       builder: (context, child) {
         final tabs = AutoTabsRouter.of(context);
+        _tabsRouter = tabs;
 
         // Set initial index to News (only once)
         if (!_initialIndexSet) {
@@ -170,6 +237,9 @@ class _MainPageState extends ConsumerState<MainPage> {
           animation: activeStack ?? const AlwaysStoppedAnimation<double>(0),
           builder: (innerCtx, _) {
             final canPop = activeStack?.canPop() ?? false;
+            final subRouteTitle =
+                _appBarTitleForSubRoute(activeStack?.current.name);
+            final showMainAppBar = !canPop || subRouteTitle != null;
             return PopScope(
               canPop: false,
               onPopInvokedWithResult: (didPop, _) {
@@ -187,16 +257,19 @@ class _MainPageState extends ConsumerState<MainPage> {
               child: Scaffold(
                 key: _scaffoldKey,
                 extendBodyBehindAppBar: backgroundPath != null,
-                appBar: canPop
-                    ? null
-                    : MainAppBar(
+                appBar: showMainAppBar
+                    ? MainAppBar(
                         activeTab: activeTab,
-                        actions: _appBarActions(
-                          innerCtx,
-                          activeTab,
-                          isAuthenticated: isAuthenticated,
-                        ),
-                      ),
+                        titleOverride: subRouteTitle,
+                        actions: subRouteTitle == null
+                            ? _appBarActions(
+                                innerCtx,
+                                activeTab,
+                                isAuthenticated: isAuthenticated,
+                              )
+                            : null,
+                      )
+                    : null,
                 drawer: const MainAppDrawer(),
                 body: ConnectivityWrapper(
                   child: Stack(
@@ -212,23 +285,45 @@ class _MainPageState extends ConsumerState<MainPage> {
                               : null,
                         ),
                       ),
-                      Padding(
-                        padding: (backgroundPath != null && !canPop)
-                            ? EdgeInsets.only(
-                                top:
-                                    kToolbarHeight +
-                                    MediaQuery.of(context).padding.top,
-                              )
-                            : EdgeInsets.zero,
-                        child: MediaQuery.removePadding(
-                          context: context,
-                          removeTop: true,
-                          child: ResponsiveContentWrapper(
-                            maxWidth: 700,
-                            child: child,
-                          ),
-                        ),
-                      ),
+                      Builder(builder: (innerCtx2) {
+                        final useManualTopPadding =
+                            backgroundPath != null && !canPop;
+                        final content = ResponsiveContentWrapper(
+                          maxWidth: 700,
+                          child: child,
+                        );
+                        // Reserve the bottom system inset (Android nav bar /
+                        // iOS home indicator) only for tab roots — the overview
+                        // lists, which don't use PatternAwareScaffold and would
+                        // otherwise be cut off (edge-to-edge, targetSdk 36).
+                        // Pushed sub-routes (canPop) are excluded: they handle
+                        // the inset themselves (PatternAwareScaffold) or are
+                        // deliberately full-bleed (shorts feed), where wrapping
+                        // would reveal the background below the inset.
+                        final wrapped = canPop
+                            ? content
+                            : SafeArea(
+                                top: false,
+                                left: false,
+                                right: false,
+                                child: content,
+                              );
+                        return Padding(
+                          padding: useManualTopPadding
+                              ? EdgeInsets.only(
+                                  top: kToolbarHeight +
+                                      MediaQuery.of(context).padding.top,
+                                )
+                              : EdgeInsets.zero,
+                          child: useManualTopPadding
+                              ? MediaQuery.removePadding(
+                                  context: context,
+                                  removeTop: true,
+                                  child: wrapped,
+                                )
+                              : wrapped,
+                        );
+                      }),
                     ],
                   ),
                 ),
@@ -245,6 +340,19 @@ class _MainPageState extends ConsumerState<MainPage> {
     NavigationElement activeTab, {
     required bool isAuthenticated,
   }) {
+    if (activeTab == NavigationElement.achievements) {
+      return [
+        IconButton.filled(
+          icon: const Icon(Icons.qr_code_scanner),
+          style: IconButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+          ),
+          tooltip: 'QR-Code scannen',
+          onPressed: () => openScannerOrLogin(context, ref),
+        ).withPaddingRight(16),
+      ];
+    }
     if (activeTab != NavigationElement.profile) return null;
     return [
       IconButton(

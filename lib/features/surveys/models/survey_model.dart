@@ -33,7 +33,8 @@ class SurveyOption {
   factory SurveyOption.fromJson(Map<String, dynamic> json) {
     return SurveyOption(
       text: json['text'] as String,
-      voterIds: (json['voters'] as List<dynamic>?)
+      voterIds:
+          (json['voters'] as List<dynamic>?)
               ?.map((e) => e['id'] as int)
               .toList() ??
           [],
@@ -58,6 +59,7 @@ class SurveyEntry {
   final String? imageUrl;
   final DateTime expiresAt;
   final DateTime createdAt;
+
   /// Scheduled visibility time (custom CMS field). Null for immediate publish.
   /// Used as primary sort key; falls back to createdAt when null.
   final DateTime? publishAt;
@@ -79,6 +81,14 @@ class SurveyEntry {
   final bool allowCustomOptions;
   final List<CustomOption> customOptions;
 
+  final int viewCount;
+
+  /// Optionale Gruppen-Bindung. Null bedeutet global („Alle"). Wenn gesetzt,
+  /// stammt die Umfrage aus dieser Gruppe und wird in der App-Karte als
+  /// Meta-Zeile angezeigt.
+  final String? scopeGroupDocumentId;
+  final String? scopeGroupName;
+
   SurveyEntry({
     required this.id,
     required this.documentId,
@@ -96,7 +106,34 @@ class SurveyEntry {
     required this.comments,
     this.allowCustomOptions = false,
     this.customOptions = const [],
+    this.viewCount = 0,
+    this.scopeGroupDocumentId,
+    this.scopeGroupName,
   });
+
+  SurveyEntry copyWith({int? viewCount}) {
+    return SurveyEntry(
+      id: id,
+      documentId: documentId,
+      title: title,
+      subTitle: subTitle,
+      imageUrl: imageUrl,
+      expiresAt: expiresAt,
+      createdAt: createdAt,
+      publishAt: publishAt,
+      type: type,
+      maxVotes: maxVotes,
+      options: options,
+      yesVoters: yesVoters,
+      noVoters: noVoters,
+      comments: comments,
+      allowCustomOptions: allowCustomOptions,
+      customOptions: customOptions,
+      viewCount: viewCount ?? this.viewCount,
+      scopeGroupDocumentId: scopeGroupDocumentId,
+      scopeGroupName: scopeGroupName,
+    );
+  }
 
   /// Effective visibility time used for sorting.
   DateTime get effectiveDate => publishAt ?? createdAt;
@@ -105,10 +142,11 @@ class SurveyEntry {
       .where((o) => o.status == CustomOptionStatus.approved)
       .toList();
 
-  List<CustomOption> get pendingCustomOptions => customOptions
-      .where((o) => o.status == CustomOptionStatus.pending)
-      .toList()
-    ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  List<CustomOption> get pendingCustomOptions =>
+      customOptions
+          .where((o) => o.status == CustomOptionStatus.pending)
+          .toList()
+        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
 
   // Computed properties
   SurveyStatus getStatus(int? userId) {
@@ -132,10 +170,10 @@ class SurveyEntry {
     if (type == SurveyType.yesNo) {
       return hasUserVoted(userId) ? 1 : 0;
     }
-    final pollVotes =
-        options?.where((o) => o.hasUserVoted(userId)).length ?? 0;
-    final customVotes =
-        customOptions.where((o) => o.hasUserVoted(userId)).length;
+    final pollVotes = options?.where((o) => o.hasUserVoted(userId)).length ?? 0;
+    final customVotes = customOptions
+        .where((o) => o.hasUserVoted(userId))
+        .length;
     return pollVotes + customVotes;
   }
 
@@ -171,13 +209,17 @@ class SurveyEntry {
       return (yesVoters?.length ?? 0) + (noVoters?.length ?? 0);
     } else if (type == SurveyType.election) {
       return options?.fold<int>(
-              0, (sum, option) => sum + option.electionVoteCount) ??
+            0,
+            (sum, option) => sum + option.electionVoteCount,
+          ) ??
           0;
     } else {
       final pollVotes =
           options?.fold<int>(0, (sum, option) => sum + option.voteCount) ?? 0;
-      final customVotes =
-          customOptions.fold<int>(0, (sum, option) => sum + option.voteCount);
+      final customVotes = customOptions.fold<int>(
+        0,
+        (sum, option) => sum + option.voteCount,
+      );
       return pollVotes + customVotes;
     }
   }
@@ -261,7 +303,7 @@ class SurveyEntry {
       }
     }
 
-    // Parse comments
+    // Parse comments — newest first; UI verlässt sich auf diese Ordnung.
     List<Comment> comments = [];
     final commentsData = attributes['comments'];
     if (commentsData != null) {
@@ -278,22 +320,7 @@ class SurveyEntry {
             .toList();
       }
     }
-
-    List<Comment> commentsList = [];
-    if (json['comments'] != null) {
-      final commentsData = json['comments'];
-      if (commentsData is List) {
-        commentsList = commentsData.map((c) {
-          if (c is Map<String, dynamic>) {
-            return Comment.fromJson(c, baseUrl);
-          } else {
-            throw ArgumentError('Invalid comment data');
-          }
-        }).toList();
-        // Sort comments by timestamp, newest first
-        commentsList.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      }
-    }
+    comments.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
     // Parse custom options — eine Liste, alle Status (reviewStatus pro Eintrag)
     List<CustomOption> customOptions = [];
@@ -306,6 +333,14 @@ class SurveyEntry {
 
     final allowCustomOptions =
         attributes['allowCustomOptions'] as bool? ?? false;
+
+    final groupJson = attributes['group'];
+    final scopeGroupDocumentId = groupJson is Map
+        ? groupJson['documentId'] as String?
+        : null;
+    final scopeGroupName = groupJson is Map
+        ? groupJson['name'] as String?
+        : null;
 
     return SurveyEntry(
       id: json['id'] as int,
@@ -332,6 +367,9 @@ class SurveyEntry {
       comments: comments,
       allowCustomOptions: allowCustomOptions,
       customOptions: customOptions,
+      viewCount: attributes['viewCount'] as int? ?? 0,
+      scopeGroupDocumentId: scopeGroupDocumentId,
+      scopeGroupName: scopeGroupName,
     );
   }
 
@@ -355,75 +393,7 @@ class SurveyEntry {
       'yesVoters': yesVoters,
       'noVoters': noVoters,
       'comments': comments.map((e) => e.toJson()).toList(),
+      'viewCount': viewCount,
     };
-  }
-}
-
-/// Input für den Admin-Create-Wizard. Wird über
-/// [SurveysController.createSurvey] an `POST /api/surveys` geschickt.
-class SurveyCreateInput {
-  final String title;
-  final String? subTitle;
-  final int? imageMediaId;
-  final SurveyType type;
-  final DateTime expiresAt;
-  final DateTime? publishAt;
-  final int maxVotes;
-  final bool allowCustomOptions;
-
-  /// Optionen-Texte für `multiple` und `election`. Leere Einträge werden
-  /// in [toCreateBody] herausgefiltert. Bei `yesNo` ignoriert.
-  final List<String> optionTexts;
-
-  SurveyCreateInput({
-    required this.title,
-    this.subTitle,
-    this.imageMediaId,
-    required this.type,
-    required this.expiresAt,
-    this.publishAt,
-    this.maxVotes = 1,
-    this.allowCustomOptions = false,
-    this.optionTexts = const [],
-  });
-
-  /// Strapi erwartet das Payload als `{ data: { ... } }` — diese Methode
-  /// liefert den inneren `data`-Map, der Aufrufer wrappt selbst.
-  Map<String, dynamic> toCreateBody() {
-    final body = <String, dynamic>{
-      'title': title,
-      'type': switch (type) {
-        SurveyType.yesNo => 'yes-no',
-        SurveyType.election => 'election',
-        SurveyType.multiple => 'multiple',
-      },
-      'expiresAt':
-          '${expiresAt.year.toString().padLeft(4, '0')}-${expiresAt.month.toString().padLeft(2, '0')}-${expiresAt.day.toString().padLeft(2, '0')}',
-      'maxVotes': maxVotes,
-      'allowCustomOptions': type == SurveyType.multiple && allowCustomOptions,
-    };
-
-    if (subTitle != null && subTitle!.trim().isNotEmpty) {
-      body['subTitle'] = subTitle!.trim();
-    }
-    if (imageMediaId != null) {
-      body['image'] = imageMediaId;
-    }
-    if (publishAt != null) {
-      body['publishAt'] = publishAt!.toUtc().toIso8601String();
-    }
-
-    if (type == SurveyType.multiple || type == SurveyType.election) {
-      final nonEmpty = optionTexts
-          .map((t) => t.trim())
-          .where((t) => t.isNotEmpty)
-          .map((t) => {'text': t})
-          .toList();
-      if (nonEmpty.isNotEmpty) {
-        body['options'] = nonEmpty;
-      }
-    }
-
-    return body;
   }
 }

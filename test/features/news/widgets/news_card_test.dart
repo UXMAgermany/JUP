@@ -31,7 +31,6 @@ void main() {
             child: NewsCard(
               header: newsEntry.title,
               subhead: newsEntry.subTitle,
-              text: newsEntry.text,
               date: '15.10.24',
               author: newsEntry.author,
               category: newsEntry.category,
@@ -205,7 +204,7 @@ void main() {
       expect(find.text('Test Subtitle'), findsOneWidget);
     });
 
-    testWidgets('should use text as fallback when no subtitle', (
+    testWidgets('should omit subtitle when subTitle is null', (
       WidgetTester tester,
     ) async {
       final newsWithoutSubtitle = NewsEntry(
@@ -222,8 +221,9 @@ void main() {
       );
       await tester.pump();
 
-      // Should display the text content
-      expect(find.text('Delicious food article'), findsOneWidget);
+      // Body field is no longer rendered in the card — only title/author/date.
+      expect(find.text('Delicious food article'), findsNothing);
+      expect(find.text('Food News'), findsOneWidget);
     });
 
     testWidgets('should display person icon for author', (

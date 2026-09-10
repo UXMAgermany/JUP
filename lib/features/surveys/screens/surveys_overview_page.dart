@@ -324,7 +324,20 @@ class _SurveysOverviewPageState extends ConsumerState<SurveysOverviewPage>
               key: Key('survey_${survey.documentId}'),
               onVisibilityChanged: (info) {
                 if (info.visibleFraction > 0.5) {
-                  ref.read(seenPostsProvider.notifier).markAsSeen(survey.documentId);
+                  final alreadySeen = ref
+                      .read(persistedPostsProvider)
+                      .contains(survey.documentId);
+                  if (!alreadySeen && userId != null) {
+                    ref
+                        .read(surveysListProvider.notifier)
+                        .incrementViewCount(survey.documentId);
+                    ref
+                        .read(surveysControllerProvider)
+                        .incrementViewCount(survey.documentId);
+                  }
+                  ref
+                      .read(seenPostsProvider.notifier)
+                      .markAsSeen(survey.documentId);
                 }
               },
               child: SurveyCard(
@@ -336,7 +349,7 @@ class _SurveysOverviewPageState extends ConsumerState<SurveysOverviewPage>
                   createdAt: survey.createdAt,
                   seenPosts: seenPosts,
                   isLoaded: ref.read(seenPostsProvider.notifier).isLoaded,
-                  firstLaunchDate: ref.read(seenPostsProvider.notifier).firstLaunchDate,
+                  firstLoginAt: ref.read(seenPostsProvider.notifier).firstLoginAt,
                 ),
               ),
             ),

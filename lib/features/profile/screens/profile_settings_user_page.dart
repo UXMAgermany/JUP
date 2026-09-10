@@ -4,15 +4,18 @@ import 'package:auto_route/auto_route.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jup/features/achievements/controllers/achievement_check.dart';
 import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/features/auth/models/user_model.dart';
 import 'package:jup/features/files/controllers/file_provider.dart';
 import 'package:jup/features/profile/widgets/nickname_edit_sheet.dart';
 import 'package:jup/features/profile/widgets/password_edit_sheet.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:jup/shared/extensions/snackbar_extension.dart';
 import 'package:jup/shared/services/error_handler.dart';
 import 'package:jup/shared/utils/avatar_helper.dart';
 import 'package:jup/shared/widgets/jup_bottom_sheet.dart';
+import 'package:jup/shared/widgets/pattern_aware_scaffold.dart';
 import 'package:jup/shared/widgets/sub_page_app_bar.dart';
 import 'package:jup/shared/widgets/text.dart';
 
@@ -46,6 +49,17 @@ class _ProfileSettingsUserPageState
 
     final User? user = authState.user;
 
+    if (user == null) {
+      // Token expired / Hintergrund-Logout während Page sichtbar — kurzer
+      // Lade-Spinner statt force-unwrap-Crash. Auth-Guard übernimmt danach.
+      return PatternAwareScaffold(
+        appBar: SubPageAppBar(titleText: "Profil­informationen"),
+        body: const SafeArea(
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
     tapNickname() {
       showJupBottomSheet<void>(
         context: context,
@@ -67,18 +81,18 @@ class _ProfileSettingsUserPageState
     }
 
     Future<void> onChangeAvatar(newAvatarPath) async {
-      final authNotifier = ref.watch(authProvider.notifier);
+      final authNotifier = ref.read(authProvider.notifier);
       _error = null;
 
       try {
         User? updatedUser = await authNotifier.updateAvatar(newAvatarPath);
         if (context.mounted && updatedUser != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            ScaffoldMessenger.of(context).clearSnackBars();
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(randomFeedback())));
+            if (!context.mounted) return;
+            context.showAppSnackbar(randomFeedback());
           });
+          await runAchievementCheck(context, ref,
+              keys: ['special.wandelbar']);
         }
       } catch (e) {
         setState(() {
@@ -87,7 +101,7 @@ class _ProfileSettingsUserPageState
       }
     }
 
-    return Scaffold(
+    return PatternAwareScaffold(
       appBar: SubPageAppBar(titleText: "Profil\u00ADinformationen"),
       body: SafeArea(
         child: ListView(
@@ -98,8 +112,8 @@ class _ProfileSettingsUserPageState
                   Center(
                     child: ClipOval(
                       child: AvatarHelper.buildAvatar(
-                        localAvatarId: user?.localAvatarId,
-                        cmsAvatarUrl: user?.avatarPath,
+                        localAvatarId: user.localAvatarId,
+                        cmsAvatarUrl: user.avatarPath,
                         brightness: Theme.of(context).brightness,
                         size: 120,
                       ),
@@ -130,7 +144,7 @@ class _ProfileSettingsUserPageState
                               final avatarId =
                                   AvatarHelper.availableAvatarIds[index];
                               final isSelected =
-                                  user?.localAvatarId == avatarId;
+                                  user.localAvatarId == avatarId;
 
                               return GestureDetector(
                                 onTap: () => onChangeAvatar('local:$avatarId'),
@@ -164,9 +178,8 @@ class _ProfileSettingsUserPageState
                                   index -
                                   AvatarHelper.availableAvatarIds.length;
                               final file = cmsAvatars[cmsIndex];
-                              final isSelected =
-                                  user?.avatarPath != null &&
-                                  user!.avatarPath!.contains(file.path);
+                              final isSelected = user.avatarPath != null &&
+                                  user.avatarPath!.contains(file.path);
 
                               return GestureDetector(
                                 onTap: () => onChangeAvatar(file.path),
@@ -225,7 +238,7 @@ class _ProfileSettingsUserPageState
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         BodyLarge(text: "Benutzername"),
-                        BodyMedium(text: user!.nickname, softWrap: true),
+                        BodyMedium(text: user.nickname, softWrap: true),
                       ],
                     ).withPadding(12, 8, 12, 8),
                   ),

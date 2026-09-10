@@ -16,22 +16,22 @@ void main() {
     group('generateShortsLink', () {
       test('should generate correct deep link for shorts', () {
         final link = deepLinkService.generateShortsLink('test-id-123');
-        expect(link, 'jup://shorts/test-id-123');
+        expect(link, 'https://<YOUR_HOST>/shorts/test-id-123');
       });
 
       test('should handle shorts ID with special characters', () {
         final link = deepLinkService.generateShortsLink('test-id_456-abc');
-        expect(link, 'jup://shorts/test-id_456-abc');
+        expect(link, 'https://<YOUR_HOST>/shorts/test-id_456-abc');
       });
 
       test('should handle numeric shorts ID', () {
         final link = deepLinkService.generateShortsLink('123456');
-        expect(link, 'jup://shorts/123456');
+        expect(link, 'https://<YOUR_HOST>/shorts/123456');
       });
 
       test('should handle empty shorts ID', () {
         final link = deepLinkService.generateShortsLink('');
-        expect(link, 'jup://shorts/');
+        expect(link, 'https://<YOUR_HOST>/shorts/');
       });
     });
 
@@ -114,6 +114,74 @@ void main() {
         final uri = Uri.parse(link);
         final parsedId = deepLinkService.parseShortsId(uri);
         expect(parsedId, originalId);
+      });
+    });
+
+    group('App Link form (https)', () {
+      test('should parse a verified App Link', () {
+        final uri = Uri.parse('https://<YOUR_HOST>/shorts/abc-123');
+        expect(deepLinkService.parseShortsId(uri), 'abc-123');
+      });
+
+      test('should keep content types apart', () {
+        const host = 'https://<YOUR_HOST>';
+        expect(deepLinkService.parseNewsId(Uri.parse('$host/news/n1')), 'n1');
+        expect(
+          deepLinkService.parseEventId(Uri.parse('$host/events/e1')),
+          'e1',
+        );
+        expect(
+          deepLinkService.parseSurveyId(Uri.parse('$host/surveys/s1')),
+          's1',
+        );
+        // One type must not claim another type's link.
+        expect(
+          deepLinkService.parseShortsId(Uri.parse('$host/news/n1')),
+          isNull,
+        );
+      });
+
+      test('should reject a foreign host', () {
+        final uri = Uri.parse('https://evil.example.com/shorts/abc-123');
+        expect(deepLinkService.parseShortsId(uri), isNull);
+      });
+
+      test('should reject a link without an id', () {
+        final uri = Uri.parse('https://<YOUR_HOST>/shorts');
+        expect(deepLinkService.parseShortsId(uri), isNull);
+      });
+
+      test('should take the first segment after the type', () {
+        final uri = Uri.parse(
+          'https://<YOUR_HOST>/shorts/abc-123/extra',
+        );
+        expect(deepLinkService.parseShortsId(uri), 'abc-123');
+      });
+
+      test('should decode percent-encoded ids', () {
+        final uri = Uri.parse(
+          'https://<YOUR_HOST>/shorts/test%20id%20123',
+        );
+        expect(deepLinkService.parseShortsId(uri), 'test id 123');
+      });
+
+      test('should still understand the old jup:// form', () {
+        // Links shared by older app versions stay valid.
+        final uri = Uri.parse('jup://shorts/abc-123');
+        expect(deepLinkService.parseShortsId(uri), 'abc-123');
+      });
+
+      test('should generate App Links for every type', () {
+        const host = 'https://<YOUR_HOST>';
+        expect(deepLinkService.generateNewsLink('n1'), '$host/news/n1');
+        expect(deepLinkService.generateEventLink('e1'), '$host/events/e1');
+        expect(deepLinkService.generateSurveyLink('s1'), '$host/surveys/s1');
+      });
+
+      test('should encode special characters when generating', () {
+        final link = deepLinkService.generateShortsLink('a b/c');
+        expect(link, 'https://<YOUR_HOST>/shorts/a%20b%2Fc');
+        expect(deepLinkService.parseShortsId(Uri.parse(link)), 'a b/c');
       });
     });
 

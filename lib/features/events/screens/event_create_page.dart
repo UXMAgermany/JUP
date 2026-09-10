@@ -12,8 +12,13 @@ import 'package:jup/features/events/screens/event_create/step2_basic_info.dart';
 import 'package:jup/features/events/screens/event_create/step3_schedule.dart';
 import 'package:jup/features/events/screens/event_create/step4_content.dart';
 import 'package:jup/features/events/screens/event_create/step5_publish.dart';
+import 'package:jup/features/groups/controllers/groups_provider.dart';
+import 'package:jup/features/groups/models/scope_option.dart';
+import 'package:jup/features/groups/widgets/group_scope_step.dart';
+import 'package:jup/shared/extensions/snackbar_extension.dart';
 import 'package:jup/shared/models/app_exception.dart';
 import 'package:jup/shared/services/media_picker.dart';
+import 'package:jup/shared/widgets/create_page_app_bar.dart';
 import 'package:jup/shared/widgets/media_source_sheet.dart';
 import 'package:jup/shared/widgets/text.dart';
 
@@ -26,7 +31,8 @@ class EventCreatePage extends ConsumerStatefulWidget {
 }
 
 class _EventCreatePageState extends ConsumerState<EventCreatePage> {
-  static const _stepCount = 5;
+  /// Fixe Anzahl Steps OHNE den Scope-Step.
+  static const _stepCountWithoutScope = 5;
 
   final _pageController = PageController();
   final _mediaPicker = MediaPicker();
@@ -46,8 +52,14 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
     _pageController.jumpToPage(step);
   }
 
-  Future<void> _onPrimaryPressed() async {
-    if (_currentStep < _stepCount - 1) {
+  bool _shouldShowScopeStep(List<ScopeOption> options) {
+    if (options.isEmpty) return false;
+    if (options.length == 1 && options.first.isGlobal) return false;
+    return true;
+  }
+
+  Future<void> _onPrimaryPressed(int stepCount) async {
+    if (_currentStep < stepCount - 1) {
       _goToStep(_currentStep + 1);
       return;
     }
@@ -56,8 +68,6 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    final messenger = ScaffoldMessenger.of(context);
-
     final form = ref.read(eventCreateFormProvider);
     final entry = await ref.read(eventCreateProvider.notifier).submit(form);
     if (!mounted) return;
@@ -74,7 +84,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
     final message = error is AppException
         ? error.message
         : 'Event konnte nicht erstellt werden.';
-    messenger.showSnackBar(SnackBar(content: Text(message)));
+    context.showAppSnackbar(message);
   }
 
   Future<File?> _pickImageWithFeedback(
@@ -85,9 +95,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
       return await _mediaPicker.pickImage(source, aspectRatio: aspectRatio);
     } on AppException catch (e) {
       if (!mounted) return null;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      context.showAppSnackbar(e.message);
       return null;
     }
   }
@@ -97,9 +105,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
       return await _mediaPicker.pickVideo(source);
     } on AppException catch (e) {
       if (!mounted) return null;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      context.showAppSnackbar(e.message);
       return null;
     }
   }
@@ -130,8 +136,10 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
     }
   }
 
-  bool _isCurrentStepValid(EventCreateFormState s) {
-    switch (_currentStep) {
+  bool _isCurrentStepValid(EventCreateFormState s, bool showScopeStep) {
+    if (showScopeStep && _currentStep == 0) return s.isScopeStepValid;
+    final originalStep = showScopeStep ? _currentStep - 1 : _currentStep;
+    switch (originalStep) {
       case 0:
         return s.isStep1Valid;
       case 1:
@@ -204,15 +212,55 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
     controller.setExpiresAt(date);
   }
 
+  Future<void> _pickSignupClosesAt(
+    EventCreateFormController controller,
+    EventCreateFormState state,
+  ) async {
+    final now = DateTime.now();
+    // Stichtag darf nicht nach dem Event-Datum liegen. Wenn noch kein
+    // Start-Datum gesetzt ist, fallback auf +1 Jahr.
+    final lastDate = state.startDate ?? now.add(const Duration(days: 365));
+    final date = await showDatePicker(
+      context: context,
+      initialDate: state.signupClosesAt ?? now,
+      firstDate: now,
+      lastDate: lastDate,
+    );
+    if (date == null) return;
+    controller.setSignupClosesAt(date);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_success) return _buildSuccessView(context);
 
+    final myGroupsAsync = ref.watch(myGroupsProvider);
+    if (!myGroupsAsync.hasValue) {
+      return Scaffold(
+        resizeToAvoidBottomInset: false,
+        appBar: CreatePageAppBar(
+          title: 'Event erstellen',
+          onClose: () => Navigator.of(context).pop(),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final state = ref.watch(eventCreateFormProvider);
     final controller = ref.read(eventCreateFormProvider.notifier);
     final submitting = ref.watch(eventCreateProvider).isLoading;
-    final isLast = _currentStep == _stepCount - 1;
-    final canAdvance = _isCurrentStepValid(state) && !submitting;
+    final scopeOptions = ref.watch(scopeOptionsProvider);
+    final showScopeStep = _shouldShowScopeStep(scopeOptions);
+
+    if (!showScopeStep && !state.scopeSelected) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) controller.setScope(null);
+      });
+    }
+
+    final stepCount = _stepCountWithoutScope + (showScopeStep ? 1 : 0);
+    final isLast = _currentStep == stepCount - 1;
+    final canAdvance = _isCurrentStepValid(state, showScopeStep) && !submitting;
 
     return Stack(
       children: [
@@ -225,15 +273,9 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
           // doppelt geschrumpft, RenderFlex-Overflow und Whitespace ueber
           // der Tastatur.
           resizeToAvoidBottomInset: false,
-          appBar: AppBar(
-            toolbarHeight: 104,
-            leading: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: submitting ? null : () => Navigator.of(context).pop(),
-              tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-            ),
-            centerTitle: false,
-            title: const HeadlineSmallEmphasized(text: 'Event erstellen'),
+          appBar: CreatePageAppBar(
+            title: 'Event erstellen',
+            onClose: submitting ? null : () => Navigator.of(context).pop(),
           ),
           body: AbsorbPointer(
             absorbing: submitting,
@@ -248,6 +290,14 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                       physics: const NeverScrollableScrollPhysics(),
                       onPageChanged: (i) => setState(() => _currentStep = i),
                       children: [
+                        if (showScopeStep)
+                          GroupScopeStep(
+                            title: 'Für wen willst du das Event erstellen?',
+                            selectedGroupDocumentId: state.scopeGroupDocumentId,
+                            selected: state.scopeSelected,
+                            onSelect: (o) =>
+                                controller.setScope(o.groupDocumentId),
+                          ),
                         EventCreateStep1Category(
                           selected: state.category,
                           onSelect: controller.setCategory,
@@ -282,6 +332,10 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                           onToggleExpiresAt: controller.setExpiresAtEnabled,
                           onPickExpiresAt: () =>
                               _pickExpiresAt(controller, state),
+                          onToggleSignupClosesAt:
+                              controller.setSignupClosesAtEnabled,
+                          onPickSignupClosesAt: () =>
+                              _pickSignupClosesAt(controller, state),
                         ),
                         EventCreateStep4Content(
                           state: state,
@@ -329,7 +383,9 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                             const SizedBox(width: 12),
                           ],
                           FilledButton(
-                            onPressed: canAdvance ? _onPrimaryPressed : null,
+                            onPressed: canAdvance
+                                ? () => _onPrimaryPressed(stepCount)
+                                : null,
                             child: Text(isLast ? 'Veröffentlichen' : 'Weiter'),
                           ),
                         ],
@@ -365,16 +421,9 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceBright,
-      appBar: AppBar(
-        toolbarHeight: 80,
-        backgroundColor: theme.colorScheme.surfaceBright,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
-          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-        ),
-        centerTitle: false,
-        title: const HeadlineSmallEmphasized(text: 'Event erstellen'),
+      appBar: CreatePageAppBar(
+        title: 'Event erstellen',
+        onClose: () => Navigator.of(context).pop(),
       ),
       body: SafeArea(
         top: false,

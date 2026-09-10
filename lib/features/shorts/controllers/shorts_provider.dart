@@ -37,19 +37,11 @@ class ShortsListNotifier extends StateNotifier<AsyncValue<List<ShortsEntry>>> {
   void incrementViewCount(String documentId) {
     state.whenData((shortsList) {
       final index = shortsList.indexWhere((s) => s.documentId == documentId);
-      if (index != -1) {
-        final updatedShort = shortsList[index];
-        final newList = List<ShortsEntry>.from(shortsList);
-        newList[index] = ShortsEntry(
-          documentId: updatedShort.documentId,
-          title: updatedShort.title,
-          video: updatedShort.video,
-          viewCount: updatedShort.viewCount + 1,
-          createdAt: updatedShort.createdAt,
-          publishedAt: updatedShort.publishedAt,
-        );
-        state = AsyncValue.data(newList);
-      }
+      if (index == -1) return;
+      final current = shortsList[index];
+      final newList = List<ShortsEntry>.from(shortsList);
+      newList[index] = current.copyWith(viewCount: current.viewCount + 1);
+      state = AsyncValue.data(newList);
     });
   }
 

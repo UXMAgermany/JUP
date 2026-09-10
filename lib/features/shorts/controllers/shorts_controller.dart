@@ -93,7 +93,10 @@ class ShortsController {
   /// Increment view count for a shorts entry
   Future<void> incrementViewCount(String documentId) async {
     try {
-      await _client.post('/api/shorts/$documentId/view');
+      await _client.post(
+        '/api/shorts/$documentId/view',
+        useUserAuth: true,
+      );
     } catch (e) {
       // Silently fail - view count is not critical
       debugPrint('Error incrementing view count: $e');

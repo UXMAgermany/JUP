@@ -6,20 +6,16 @@ class ConnectionErrorWidget extends StatelessWidget {
   final String errorMessage;
   final VoidCallback onRetry;
   final double? height;
-  final bool darkMode;
 
   const ConnectionErrorWidget({
     super.key,
     required this.errorMessage,
     required this.onRetry,
     this.height,
-    this.darkMode = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final textColor = darkMode ? Colors.white : null;
-
     return SizedBox(
       height: height ?? 256,
       child: Stack(
@@ -35,9 +31,7 @@ class ConnectionErrorWidget extends StatelessWidget {
                 // Error Message
                 Text(
                   errorMessage,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: textColor,
-                      ),
+                  style: Theme.of(context).textTheme.titleSmall,
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),

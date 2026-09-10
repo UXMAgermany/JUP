@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jup/features/content/controllers/help_provider.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/widgets/async_state_builder.dart';
+import 'package:jup/shared/widgets/pattern_aware_scaffold.dart';
 import 'package:jup/shared/widgets/sub_page_app_bar.dart';
 import 'package:markdown_widget/widget/markdown_block.dart';
 import 'package:jup/shared/theme/markdown_config.dart';
@@ -16,7 +17,7 @@ class ImprintPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final imprintAsync = ref.watch(imprintProvider);
 
-    return Scaffold(
+    return PatternAwareScaffold(
       appBar: SubPageAppBar(titleText: "Impressum"),
       body: AsyncStateBuilder(
         value: imprintAsync,

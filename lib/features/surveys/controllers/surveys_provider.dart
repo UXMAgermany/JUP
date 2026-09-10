@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/features/surveys/controllers/surveys_controller.dart';
 import 'package:jup/features/surveys/models/survey_model.dart';
 import 'package:jup/shared/controllers/paginated_list_notifier.dart';
@@ -13,13 +14,26 @@ final surveysControllerProvider = Provider<SurveysController>((ref) {
 
 /// StateNotifier for managing surveys list with pagination
 class SurveysListNotifier extends PaginatedListNotifier<SurveyEntry> {
-  SurveysListNotifier(this.controller) : super(pageSize: 25) {
-    fetchSurveys();
+  SurveysListNotifier(
+    this.controller, {
+    SurveyType? initialType,
+    bool initialActiveOnly = false,
+    required this.useUserAuth,
+  })  : _activeType = initialType,
+        _activeOnly = initialActiveOnly,
+        super(pageSize: 25) {
+    fetchInitial();
   }
 
   final SurveysController controller;
+
+  /// Am Auth-State festgenagelt — Riverpod baut den Notifier bei
+  /// Login/Logout neu auf.
+  final bool useUserAuth;
   SurveyType? _activeType;
-  bool _activeOnly = false;
+  bool _activeOnly;
+  String? _activeGroupDocumentId;
+  bool _activeGlobalOnly = false;
 
   // Track surveys voted on in current session (before refresh)
   final Set<String> _votedInSessionIds = {};
@@ -40,6 +54,9 @@ class SurveysListNotifier extends PaginatedListNotifier<SurveyEntry> {
       activeOnly: _activeOnly,
       pageSize: pageSize,
       page: page,
+      groupDocumentId: _activeGroupDocumentId,
+      globalOnly: _activeGlobalOnly,
+      useUserAuth: useUserAuth,
     );
   }
 
@@ -49,10 +66,20 @@ class SurveysListNotifier extends PaginatedListNotifier<SurveyEntry> {
     return fetchInitial();
   }
 
+  /// Setzt den Gruppen-Filter und lädt die erste Seite neu.
+  Future<void> setGroupFilter({
+    String? groupDocumentId,
+    bool globalOnly = false,
+  }) async {
+    _activeGroupDocumentId = groupDocumentId;
+    _activeGlobalOnly = globalOnly;
+    return fetchInitial();
+  }
+
   @override
   Future<void> refresh() async {
     _votedInSessionIds.clear();
-    return fetchSurveys(type: _activeType, activeOnly: _activeOnly);
+    return fetchInitial();
   }
 
   void updateSurveyInList(SurveyEntry updatedSurvey) {
@@ -60,6 +87,21 @@ class SurveysListNotifier extends PaginatedListNotifier<SurveyEntry> {
       (survey) => survey.documentId == updatedSurvey.documentId,
       updatedSurvey,
     );
+  }
+
+  /// Optimistically increment viewCount for a single survey in the current list.
+  void incrementViewCount(String documentId) {
+    final currentState = state;
+    if (currentState is AsyncData<List<SurveyEntry>>) {
+      final index =
+          currentState.value.indexWhere((s) => s.documentId == documentId);
+      if (index == -1) return;
+      final survey = currentState.value[index];
+      updateItemInList(
+        (s) => s.documentId == documentId,
+        survey.copyWith(viewCount: survey.viewCount + 1),
+      );
+    }
   }
 }
 
@@ -69,7 +111,10 @@ final surveysListProvider =
       ref,
     ) {
       final controller = ref.watch(surveysControllerProvider);
-      return SurveysListNotifier(controller);
+      return SurveysListNotifier(
+        controller,
+        useUserAuth: ref.watch(authProvider).isAuthenticated,
+      );
     });
 
 /// Provider for fetching surveys filtered by type
@@ -80,9 +125,11 @@ final surveysListByTypeProvider =
       SurveyType?
     >((ref, type) {
       final controller = ref.watch(surveysControllerProvider);
-      final notifier = SurveysListNotifier(controller);
-      notifier.fetchSurveys(type: type);
-      return notifier;
+      return SurveysListNotifier(
+        controller,
+        initialType: type,
+        useUserAuth: ref.watch(authProvider).isAuthenticated,
+      );
     });
 
 /// Provider for fetching a single survey by ID
@@ -91,7 +138,8 @@ final surveyDetailProvider = FutureProvider.family<SurveyEntry, String>((
   documentId,
 ) async {
   final controller = ref.watch(surveysControllerProvider);
-  return await controller.fetchSurveyById(documentId);
+  final useUserAuth = ref.watch(authProvider).isAuthenticated;
+  return await controller.fetchSurveyById(documentId, useUserAuth: useUserAuth);
 });
 
 /// StateNotifier for managing survey voting
@@ -106,7 +154,12 @@ class SurveyVoteNotifier extends StateNotifier<AsyncValue<SurveyEntry?>> {
 
   Future<void> _loadSurvey() async {
     try {
-      final survey = await controller.fetchSurveyById(surveyId);
+      // SurveyVoteNotifier wird nur für authentifizierte Voting-Flows
+      // instanziiert — sicher mit useUserAuth: true.
+      final survey = await controller.fetchSurveyById(
+        surveyId,
+        useUserAuth: true,
+      );
       state = AsyncValue.data(survey);
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);

@@ -13,19 +13,44 @@ final seenPostsProvider =
 
 class SeenPostsNotifier extends StateNotifier<Set<String>> {
   static const _prefsKey = 'seenPostIds';
-  static const _firstLaunchKey = 'firstLaunchTimestamp';
+  static const _firstLoginKey = 'firstLoginAt';
 
   final Ref _ref;
 
   bool _isLoaded = false;
-  DateTime? _firstLaunchDate;
+  DateTime? _firstLoginAt;
 
   SeenPostsNotifier(this._ref) : super({}) {
     _load();
   }
 
   bool get isLoaded => _isLoaded;
-  DateTime? get firstLaunchDate => _firstLaunchDate;
+
+  /// Cutoff für „Neu"-Badges: Zeitpunkt des ersten erfolgreichen Logins (oder
+  /// für Bestandsuser des ersten App-Starts nach Einführung dieses Felds).
+  /// Items mit `createdAt < firstLoginAt` zeigen nie ein Badge — sie galten
+  /// für diesen User von Anfang an als gesehen. `null` solange der User
+  /// nicht authentifiziert ist; in diesem Fall blendet `isNewPost` Badges aus.
+  DateTime? get firstLoginAt => _firstLoginAt;
+
+  /// Setzt den Erst-Login-Cutoff idempotent. Wird vom AuthController bei
+  /// erfolgreichem Login und beim wiederherstellen einer Bestandsession
+  /// aufgerufen.
+  Future<void> markFirstLoginIfNeeded() async {
+    if (_firstLoginAt != null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getInt(_firstLoginKey);
+    if (existing != null) {
+      _firstLoginAt = DateTime.fromMillisecondsSinceEpoch(existing);
+    } else {
+      final now = DateTime.now();
+      await prefs.setInt(_firstLoginKey, now.millisecondsSinceEpoch);
+      _firstLoginAt = now;
+    }
+    // Re-Emit erzwingen, weil _firstLoginAt außerhalb des Riverpod-State
+    // lebt — ohne neuen Set-Reference rebuildet der Drawer nicht.
+    state = {...state};
+  }
 
   /// Check if a post is visually seen (badge should NOT show).
   bool isSeen(String documentId) => state.contains(documentId);
@@ -64,14 +89,9 @@ class SeenPostsNotifier extends StateNotifier<Set<String>> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // First launch timestamp
-    final firstLaunchMs = prefs.getInt(_firstLaunchKey);
-    if (firstLaunchMs == null) {
-      final now = DateTime.now();
-      await prefs.setInt(_firstLaunchKey, now.millisecondsSinceEpoch);
-      _firstLaunchDate = now;
-    } else {
-      _firstLaunchDate = DateTime.fromMillisecondsSinceEpoch(firstLaunchMs);
+    final firstLoginMs = prefs.getInt(_firstLoginKey);
+    if (firstLoginMs != null) {
+      _firstLoginAt = DateTime.fromMillisecondsSinceEpoch(firstLoginMs);
     }
 
     // Load seen post IDs into both persistedPostsProvider and state

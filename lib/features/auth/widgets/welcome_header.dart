@@ -75,11 +75,7 @@ class WelcomeHeader extends StatelessWidget {
                         ),
                       ),
                       onPressed: () {
-                        context.router.navigate(
-                          const ProfileNavigationRoute(
-                            children: [RegisterRoute()],
-                          ),
-                        );
+                        context.router.root.push(const RegisterRoute());
                       },
                       child:
                           LabelLarge(text: 'Registrieren', color: Colors.white),
@@ -88,19 +84,19 @@ class WelcomeHeader extends StatelessWidget {
                   Center(
                     child: TextButton(
                       style: TextButton.styleFrom(
-                        foregroundColor: Theme.of(context).colorScheme.primary,
                         minimumSize: const Size(100, 32),
                       ),
                       onPressed: () {
-                        context.router.navigate(
-                          const ProfileNavigationRoute(
-                            children: [LoginRoute()],
-                          ),
-                        );
+                        context.router.root.push(const LoginRoute());
                       },
-                      child: LabelLarge(
+                      // Weiß auf `primaryFixed` (#9A7FEE) erreicht nur 3.16:1.
+                      // Mit 22px/w700 gilt die WCAG-Large-Text-Schwelle (3:1)
+                      // statt 4.5:1 — deshalb ist die Größe hier bewusst
+                      // gesetzt und kein `LabelLarge` wie beim Nachbar-Button.
+                      child: TitleLarge(
                         text: 'Einloggen',
                         color: Colors.white,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),

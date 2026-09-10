@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jup/features/shorts/controllers/shorts_provider.dart';
 import 'package:jup/features/shorts/widgets/shorts_card.dart';
+import 'package:jup/shared/controllers/seen_posts_provider.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:jup/shared/utils/badge_helper.dart';
+import 'package:jup/shared/widgets/connection_error_widget.dart';
 import 'package:jup/shared/widgets/empty_state.dart';
 import 'package:jup/shared/widgets/text.dart';
-import 'package:jup/shared/widgets/connection_error_widget.dart';
-import 'package:jup/shared/controllers/seen_posts_provider.dart';
-import 'package:jup/shared/utils/badge_helper.dart';
-import 'package:jup/shared/utils/unseen_sort_helper.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 class ShortsPreviewSection extends ConsumerWidget {
@@ -36,8 +35,7 @@ class ShortsPreviewSection extends ConsumerWidget {
               return EmptyState();
             }
 
-            final sortedShorts = sortWithBadges(shortsList, seenPosts, (e) => e.documentId, (_) => false);
-            final displayShorts = sortedShorts.take(maxShorts).toList();
+            final displayShorts = shortsList.take(maxShorts).toList();
 
             // Calculate card width based on screen width
             return LayoutBuilder(
@@ -47,7 +45,8 @@ class ShortsPreviewSection extends ConsumerWidget {
 
                 return SizedBox(
                   height: cardWidth * (16 / 9) +
-                      80, // height based on 9:16 aspect ratio + text space
+                      88, // 88 = padding(16) + title 2L bodyMedium(~44)
+                  //    + spacing(8) + viewCount bodySmall(~20)
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: displayShorts.length,
@@ -60,7 +59,9 @@ class ShortsPreviewSection extends ConsumerWidget {
                           key: Key('short_${displayShorts[index].documentId}'),
                           onVisibilityChanged: (info) {
                             if (info.visibleFraction > 0.5) {
-                              ref.read(seenPostsProvider.notifier).markAsSeen(displayShorts[index].documentId);
+                              ref
+                                  .read(seenPostsProvider.notifier)
+                                  .markAsSeen(displayShorts[index].documentId);
                             }
                           },
                           child: ShortsCard(
@@ -69,8 +70,11 @@ class ShortsPreviewSection extends ConsumerWidget {
                               documentId: displayShorts[index].documentId,
                               createdAt: displayShorts[index].createdAt,
                               seenPosts: seenPosts,
-                              isLoaded: ref.read(seenPostsProvider.notifier).isLoaded,
-                              firstLaunchDate: ref.read(seenPostsProvider.notifier).firstLaunchDate,
+                              isLoaded:
+                                  ref.read(seenPostsProvider.notifier).isLoaded,
+                              firstLoginAt: ref
+                                  .read(seenPostsProvider.notifier)
+                                  .firstLoginAt,
                             ),
                             onTap: () => onShortTap(index),
                             initializeVideo:

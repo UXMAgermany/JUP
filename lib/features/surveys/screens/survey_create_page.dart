@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:jup/features/groups/controllers/groups_provider.dart';
+import 'package:jup/features/groups/models/scope_option.dart';
+import 'package:jup/features/groups/widgets/group_scope_step.dart';
 import 'package:jup/features/surveys/controllers/survey_create_form_provider.dart';
 import 'package:jup/features/surveys/controllers/survey_create_provider.dart';
 import 'package:jup/features/surveys/models/survey_model.dart';
@@ -13,10 +16,11 @@ import 'package:jup/features/surveys/screens/survey_create/step2_mode.dart';
 import 'package:jup/features/surveys/screens/survey_create/step_form.dart';
 import 'package:jup/features/surveys/screens/survey_create/step_schedule.dart';
 import 'package:jup/features/surveys/screens/survey_create/step_success.dart';
+import 'package:jup/shared/extensions/snackbar_extension.dart';
 import 'package:jup/shared/models/app_exception.dart';
 import 'package:jup/shared/services/media_picker.dart';
+import 'package:jup/shared/widgets/create_page_app_bar.dart';
 import 'package:jup/shared/widgets/media_source_sheet.dart';
-import 'package:jup/shared/widgets/text.dart';
 
 @RoutePage()
 class SurveyCreatePage extends ConsumerStatefulWidget {
@@ -26,9 +30,9 @@ class SurveyCreatePage extends ConsumerStatefulWidget {
   ConsumerState<SurveyCreatePage> createState() => _SurveyCreatePageState();
 }
 
-/// Enum für die einzelnen Wizard-Schritte. Die Sequenz wird typabhängig
-/// zusammengesetzt — siehe [_stepSequence].
-enum _SurveyStep { type, mode, form, schedule }
+/// Enum für die einzelnen Wizard-Schritte. Die Sequenz wird typ- und
+/// scope-abhängig zusammengesetzt — siehe [_stepSequence].
+enum _SurveyStep { scope, type, mode, form, schedule }
 
 class _SurveyCreatePageState extends ConsumerState<SurveyCreatePage> {
   int _currentIndex = 0;
@@ -44,27 +48,37 @@ class _SurveyCreatePageState extends ConsumerState<SurveyCreatePage> {
   bool _submittedAllowCustomOptions = false;
   DateTime? _submittedScheduledAt;
 
-  /// Liefert die Reihenfolge der Steps abhängig vom aktuell gewählten Typ.
+  /// Liefert die Reihenfolge der Steps abhängig vom aktuell gewählten Typ
+  /// und der Sichtbarkeit des Scope-Schritts.
   /// Bei `multiple` wird der Modus-Step zwischen Typ und Form eingeschoben;
   /// bei den anderen Typen entfällt er.
-  List<_SurveyStep> _stepSequence(SurveyCreateFormState state) {
-    if (state.type == SurveyType.multiple) {
-      return const [
-        _SurveyStep.type,
-        _SurveyStep.mode,
-        _SurveyStep.form,
-        _SurveyStep.schedule,
-      ];
-    }
-    return const [
+  List<_SurveyStep> _stepSequence(
+    SurveyCreateFormState state,
+    bool showScopeStep,
+  ) {
+    return [
+      if (showScopeStep) _SurveyStep.scope,
       _SurveyStep.type,
+      if (state.type == SurveyType.multiple) _SurveyStep.mode,
       _SurveyStep.form,
       _SurveyStep.schedule,
     ];
   }
 
+  /// Scope-Step nur dann zeigen, wenn dem User mehr als eine Option zur Wahl
+  /// steht — oder seine einzige Option eine konkrete Gruppe ist (Group-Admin
+  /// soll auch bei nur einer eigenen Gruppe den Scope-Step durchlaufen,
+  /// damit das neue Rollen-Konzept transparent bleibt).
+  bool _shouldShowScopeStep(List<ScopeOption> options) {
+    if (options.isEmpty) return false;
+    if (options.length == 1 && options.first.isGlobal) return false;
+    return true;
+  }
+
   bool _isStepValid(_SurveyStep step, SurveyCreateFormState state) {
     switch (step) {
+      case _SurveyStep.scope:
+        return state.isScopeStepValid;
       case _SurveyStep.type:
         return state.isStep1Valid;
       case _SurveyStep.mode:
@@ -102,8 +116,7 @@ class _SurveyCreatePageState extends ConsumerState<SurveyCreatePage> {
       );
     } on AppException catch (e) {
       if (!mounted) return null;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      context.showAppSnackbar(e.message);
       return null;
     }
   }
@@ -145,9 +158,19 @@ class _SurveyCreatePageState extends ConsumerState<SurveyCreatePage> {
     controller.setPublishDate(date);
   }
 
-  Widget _buildStep(_SurveyStep step, SurveyCreateFormState state,
-      SurveyCreateFormController controller) {
+  Widget _buildStep(
+    _SurveyStep step,
+    SurveyCreateFormState state,
+    SurveyCreateFormController controller,
+  ) {
     switch (step) {
+      case _SurveyStep.scope:
+        return GroupScopeStep(
+          title: 'Für wen willst du die Umfrage erstellen?',
+          selectedGroupDocumentId: state.scopeGroupDocumentId,
+          selected: state.scopeSelected,
+          onSelect: (option) => controller.setScope(option.groupDocumentId),
+        );
       case _SurveyStep.type:
         return SurveyCreateStep1Type(
           selected: state.type,
@@ -155,7 +178,10 @@ class _SurveyCreatePageState extends ConsumerState<SurveyCreatePage> {
             controller.setType(t);
             // Index zurücksetzen, falls vorher schon weiter — z.B. wenn
             // User Modus-Step gesehen hatte und jetzt zu yesNo wechselt.
-            setState(() => _currentIndex = 0);
+            // Bleibt der Scope-Step in der Sequenz, springen wir auf Scope
+            // zurück; das ist okay, weil scopeSelected dann bereits true ist.
+            final firstStepIndex = state.scopeSelected ? 1 : 0;
+            setState(() => _currentIndex = firstStepIndex);
           },
         );
       case _SurveyStep.mode:
@@ -216,8 +242,6 @@ class _SurveyCreatePageState extends ConsumerState<SurveyCreatePage> {
 
   Future<void> _submit(SurveyCreateFormState form) async {
     FocusScope.of(context).unfocus();
-    final messenger = ScaffoldMessenger.of(context);
-
     final entry = await ref.read(surveyCreateProvider.notifier).submit(form);
     if (!mounted) return;
 
@@ -235,19 +259,45 @@ class _SurveyCreatePageState extends ConsumerState<SurveyCreatePage> {
     final message = error is AppException
         ? error.message
         : 'Umfrage konnte nicht erstellt werden.';
-    messenger.showSnackBar(SnackBar(content: Text(message)));
+    context.showAppSnackbar(message);
   }
 
   @override
   Widget build(BuildContext context) {
     if (_success) return _buildSuccessView(context);
 
+    // myGroupsProvider muss geladen sein, bevor wir Scope-Optionen +
+    // Auto-Skip entscheiden — sonst entstünde eine Race, in der wir initial
+    // auf „nur global" auto-skippen und dann erst nach dem Load merken,
+    // dass es auch Admin-Gruppen gibt.
+    final myGroupsAsync = ref.watch(myGroupsProvider);
+    if (!myGroupsAsync.hasValue) {
+      return Scaffold(
+        appBar: CreatePageAppBar(
+          title: 'Umfrage erstellen',
+          onClose: () => Navigator.of(context).pop(),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final state = ref.watch(surveyCreateFormProvider);
     final controller = ref.read(surveyCreateFormProvider.notifier);
     final submitting = ref.watch(surveyCreateProvider).isLoading;
-    final theme = Theme.of(context);
+    final scopeOptions = ref.watch(scopeOptionsProvider);
 
-    final sequence = _stepSequence(state);
+    final showScopeStep = _shouldShowScopeStep(scopeOptions);
+    // Auto-Skip: Wenn der Scope-Step nicht angeboten wird, gilt der Scope
+    // implizit als „global" (= null). Wir markieren ihn als bewusst
+    // durchlaufen, damit der Stepper nicht in einem ungültigen Zustand
+    // hängenbleibt.
+    if (!showScopeStep && !state.scopeSelected) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) controller.setScope(null);
+      });
+    }
+
+    final sequence = _stepSequence(state, showScopeStep);
     // Falls Typ-Wechsel den Index ungültig macht (z.B. Sequenz wurde
     // kürzer), klampfen.
     final safeIndex = _currentIndex.clamp(0, sequence.length - 1);
@@ -258,28 +308,10 @@ class _SurveyCreatePageState extends ConsumerState<SurveyCreatePage> {
     return Stack(
       children: [
         Scaffold(
-          appBar: AppBar(
-            toolbarHeight: 104,
-            leading: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: submitting ? null : () => Navigator.of(context).pop(),
-              tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-            ),
-            centerTitle: false,
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const HeadlineSmallEmphasized(text: 'Umfrage erstellen'),
-                if (subtitle != null)
-                  Text(
-                    subtitle,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-              ],
-            ),
+          appBar: CreatePageAppBar(
+            title: 'Umfrage erstellen',
+            subtitle: subtitle,
+            onClose: submitting ? null : () => Navigator.of(context).pop(),
           ),
           body: AbsorbPointer(
             absorbing: submitting,
@@ -288,9 +320,7 @@ class _SurveyCreatePageState extends ConsumerState<SurveyCreatePage> {
               onTap: () => FocusScope.of(context).unfocus(),
               child: Column(
                 children: [
-                  Expanded(
-                    child: _buildStep(currentStep, state, controller),
-                  ),
+                  Expanded(child: _buildStep(currentStep, state, controller)),
                   SafeArea(
                     top: false,
                     child: Padding(
@@ -356,28 +386,10 @@ class _SurveyCreatePageState extends ConsumerState<SurveyCreatePage> {
     }
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceBright,
-      appBar: AppBar(
-        toolbarHeight: 80,
-        backgroundColor: theme.colorScheme.surfaceBright,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
-          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-        ),
-        centerTitle: false,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const HeadlineSmallEmphasized(text: 'Umfrage erstellen'),
-            Text(
-              _successSubtitle(type, _submittedAllowCustomOptions),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
+      appBar: CreatePageAppBar(
+        title: 'Umfrage erstellen',
+        subtitle: _successSubtitle(type, _submittedAllowCustomOptions),
+        onClose: () => Navigator.of(context).pop(),
       ),
       body: SurveyCreateStepSuccess(
         type: type,

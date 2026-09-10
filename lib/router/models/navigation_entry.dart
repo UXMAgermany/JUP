@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum NavigationElement { news, events, surveys, profile, help }
+enum NavigationElement { news, events, surveys, achievements, groups, profile, help }
 
 class NavigationEntry {
   final NavigationElement type;

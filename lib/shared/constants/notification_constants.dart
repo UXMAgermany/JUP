@@ -2,7 +2,7 @@
 class NotificationConstants {
   // Android notification channel
   static const String notificationChannelId = 'jup_notifications';
-  static const String notificationChannelName = 'JUP Notifications';
+  static const String notificationChannelName = 'JUP! Notifications';
   static const String notificationChannelDescription =
       'Notifications for news, events, and surveys';
 

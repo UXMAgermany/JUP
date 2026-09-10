@@ -14,6 +14,7 @@ import 'package:jup/features/shorts/controllers/shorts_provider.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
 import 'package:jup/router/models/navigation_entry.dart';
 import 'package:jup/router/screens/main_page.dart';
+import 'package:jup/shared/controllers/group_filter_provider.dart';
 import 'package:jup/shared/controllers/scroll_controller_provider.dart';
 import 'package:jup/shared/controllers/seen_posts_provider.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
@@ -23,6 +24,7 @@ import 'package:jup/shared/utils/unseen_sort_helper.dart';
 import 'package:jup/shared/widgets/category_dropdown.dart';
 import 'package:jup/shared/widgets/connection_error_widget.dart';
 import 'package:jup/shared/widgets/empty_state.dart';
+import 'package:jup/shared/widgets/group_dropdown.dart';
 import 'package:jup/shared/widgets/jup_bottom_sheet.dart';
 import 'package:jup/shared/widgets/shorts_preview_section.dart';
 import 'package:jup/shared/widgets/text.dart';
@@ -62,6 +64,21 @@ class _NewsOverviewPageState extends ConsumerState<NewsOverviewPage> {
     // Reset display limit when filters change
     ref.listenManual(newsFilterProvider, (previous, next) {
       if (previous != next) {
+        setState(() {
+          _displayLimit = 5;
+        });
+      }
+    });
+
+    // Gruppen-Filter triggert eine echte Backend-Refetch (anders als der
+    // Category-Filter, der client-seitig anwendet), weil die Gruppen-Sicht
+    // serverseitig gegated ist.
+    ref.listenManual(groupFilterProvider('news'), (previous, next) {
+      if (previous == next) return;
+      ref.read(newsListProvider.notifier).setGroupFilter(
+            groupDocumentId: next,
+          );
+      if (mounted) {
         setState(() {
           _displayLimit = 5;
         });
@@ -266,20 +283,31 @@ class _NewsOverviewPageState extends ConsumerState<NewsOverviewPage> {
             },
           ).withPaddingX(16),
           HeadlineSmallEmphasized(text: "News").withPadding(16, 0, 16, 4),
-          CategoryDropdown<NewsCategory>(
-            categories: const [
-              NewsCategory.sport,
-              NewsCategory.music,
-              NewsCategory.events,
-              NewsCategory.food,
-              NewsCategory.gaming,
-              NewsCategory.other,
-            ],
-            selectedCategories: selectedNewsFilters,
-            labelBuilder: getFilterLabel,
-            onToggle: (category) =>
-                ref.read(newsFilterProvider.notifier).toggle(category),
-          ).withPadding(16, 0, 16, 4),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Row(
+              spacing: 8,
+              children: [
+                Flexible(
+                  child: CategoryDropdown<NewsCategory>(
+                    categories: const [
+                      NewsCategory.sport,
+                      NewsCategory.music,
+                      NewsCategory.events,
+                      NewsCategory.food,
+                      NewsCategory.gaming,
+                      NewsCategory.other,
+                    ],
+                    selectedCategories: selectedNewsFilters,
+                    labelBuilder: getFilterLabel,
+                    onToggle: (category) =>
+                        ref.read(newsFilterProvider.notifier).toggle(category),
+                  ),
+                ),
+                const Flexible(child: GroupDropdown(featureKey: 'news')),
+              ],
+            ),
+          ),
           newsAsyncValue.when(
             data: (allNews) {
               final filteredNews = selectedNewsFilters.isEmpty
@@ -304,6 +332,7 @@ class _NewsOverviewPageState extends ConsumerState<NewsOverviewPage> {
                 seenPosts,
                 (e) => e.documentId,
                 (_) => false,
+                compare: (a, b) => b.effectiveDate.compareTo(a.effectiveDate),
               );
 
               final displayedNews = _displayLimit != null
@@ -332,17 +361,19 @@ class _NewsOverviewPageState extends ConsumerState<NewsOverviewPage> {
                               seenPosts: seenPosts,
                               isLoaded:
                                   ref.read(seenPostsProvider.notifier).isLoaded,
-                              firstLaunchDate: ref
+                              firstLoginAt: ref
                                   .read(seenPostsProvider.notifier)
-                                  .firstLaunchDate,
+                                  .firstLoginAt,
                             ),
                             header: entry.title,
                             subhead: entry.subTitle,
-                            text: entry.text,
                             date: DateFormatHelper.formatDate(entry.createdAt),
                             author: entry.author,
                             imageUrl: entry.imageUrl,
                             category: entry.category,
+                            viewCount: entry.viewCount,
+                            isJUPAdmin: authState.user?.isJUPAdmin ?? false,
+                            scopeGroupName: entry.scopeGroupName,
                             onTap: () {
                               context.router.push(
                                 NewsDetailRoute(newsEntry: entry),

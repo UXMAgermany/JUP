@@ -340,8 +340,13 @@ void main() {
       await tester.tap(sendButton);
       await tester.pumpAndSettle();
 
-      // Verify error message is displayed - shows actual error string including "Exception: " prefix
-      expect(find.text('Exception: Server error'), findsOneWidget);
+      // Sheet jetzt über JupBottomSheetScaffold + ErrorHandler.parseError:
+      // unbekannte Exceptions liefern den freundlichen Fallback statt rohe
+      // "Exception: ..."-Strings.
+      expect(
+        find.text("Das hat nicht geklappt. Versuch's nochmal."),
+        findsOneWidget,
+      );
     });
   });
 }

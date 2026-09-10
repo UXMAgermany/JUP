@@ -81,7 +81,7 @@ ShortsCard(
 // Oder mit direkten Properties (für Platzhalter)
 ShortsCard(
   title: "Beispiel-Titel",
-  viewCount: "25 mal angesehen",
+  viewCount: "25 Mal angesehen",
   thumbnailUrl: "https://example.com/thumb.jpg",
   onTap: () {}
 )

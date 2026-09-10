@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only override: erlaubt Cleartext-HTTP für beliebige lokale Dev-Server
+  (Strapi/Media im WLAN). Überlagert die restriktive Main-Config nur im Debug-Build,
+  damit die Production-Config keine Dev-IPs whitelisten muss.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

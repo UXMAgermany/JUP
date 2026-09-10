@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jup/shared/extensions/snackbar_extension.dart';
 import 'package:jup/shared/utils/env_config.dart';
 import 'package:jup/shared/widgets/jup_bottom_sheet.dart';
 import 'package:jup/shared/widgets/text.dart';
@@ -120,17 +121,11 @@ class _ReportBottomSheetState extends State<ReportBottomSheet> {
         await launchUrl(emailUri);
         if (mounted) {
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Vielen Dank für deine Meldung.')),
-          );
+          context.showAppSnackbar('Vielen Dank für deine Meldung.');
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('E-Mail-App konnte nicht geöffnet werden.'),
-            ),
-          );
+          context.showAppSnackbar('E-Mail-App konnte nicht geöffnet werden.');
         }
       }
     } finally {

@@ -1,19 +1,26 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:jup/shared/theme/theme.dart';
 import 'package:jup/shared/widgets/dashed_border.dart';
 import 'package:jup/shared/widgets/text.dart';
 
-/// Hero-/Banner-Image-Upload-Tile mit zwei Zuständen:
-/// - Wenn [file] null ist: zeigt eine Dashed-Border Upload-Fläche mit
-///   "Bild hochladen"-Button.
-/// - Wenn [file] gesetzt ist: zeigt das Bild als 16:9-Preview plus
-///   "Bild entfernen"-Button darunter.
+/// Hero-/Banner-Image-Upload-Tile mit drei Zuständen:
+/// - Wenn [file] gesetzt ist: lokales Bild als 16:9-Preview plus
+///   „Bild entfernen"-Button darunter.
+/// - Wenn [file] null aber [imageUrl] gesetzt ist: Netzwerk-Bild als
+///   16:9-Preview plus „Bild entfernen"-Button darunter.
+/// - Sonst: Dashed-Border-Upload-Fläche mit „Bild hochladen"-Button.
 ///
-/// Verwendet in den News- und Event-Create-Wizards.
+/// Bei aktivem Preview ruft ein Tap auf das Bild [onPick] auf – so kann das
+/// Bild ohne Umweg über „Entfernen" gewechselt werden.
+///
+/// Verwendet in den News-, Event-, Survey- und Group-Create-Wizards sowie im
+/// Group-Edit-Sheet.
 class HeroImageUploadTile extends StatelessWidget {
   final File? file;
+  final String? imageUrl;
   final VoidCallback onPick;
   final VoidCallback onRemove;
   final String uploadLabel;
@@ -21,6 +28,7 @@ class HeroImageUploadTile extends StatelessWidget {
   const HeroImageUploadTile({
     super.key,
     required this.file,
+    this.imageUrl,
     required this.onPick,
     required this.onRemove,
     this.uploadLabel = 'Bild hochladen',
@@ -28,11 +36,23 @@ class HeroImageUploadTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final current = file;
-    if (current == null) {
-      return _HeroUploadTile(onTap: onPick, label: uploadLabel);
+    final currentFile = file;
+    if (currentFile != null) {
+      return _HeroPreviewTile(
+        imageProvider: FileImage(currentFile),
+        onPick: onPick,
+        onRemove: onRemove,
+      );
     }
-    return _HeroPreviewTile(file: current, onRemove: onRemove);
+    final currentUrl = imageUrl;
+    if (currentUrl != null && currentUrl.isNotEmpty) {
+      return _HeroPreviewTile(
+        imageProvider: CachedNetworkImageProvider(currentUrl),
+        onPick: onPick,
+        onRemove: onRemove,
+      );
+    }
+    return _HeroUploadTile(onTap: onPick, label: uploadLabel);
   }
 }
 
@@ -54,9 +74,8 @@ class _HeroUploadTile extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: SizedBox(
-          height: 120,
-          width: double.infinity,
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
           child: Center(
             child: DashedBorder(
               color: scheme.outlineVariant,
@@ -92,21 +111,39 @@ class _HeroUploadTile extends StatelessWidget {
 }
 
 class _HeroPreviewTile extends StatelessWidget {
-  final File file;
+  final ImageProvider imageProvider;
+  final VoidCallback onPick;
   final VoidCallback onRemove;
-  const _HeroPreviewTile({required this.file, required this.onRemove});
+  const _HeroPreviewTile({
+    required this.imageProvider,
+    required this.onPick,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: SizedBox(
-            height: 120,
-            width: double.infinity,
-            child: Image.file(file, fit: BoxFit.cover),
+        Semantics(
+          button: true,
+          label: 'Titelbild-Vorschau',
+          hint: 'Doppeltippen, um ein anderes Bild zu wählen',
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onPick,
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Image(
+                  image: imageProvider,
+                  fit: BoxFit.cover,
+                  excludeFromSemantics: true,
+                ),
+              ),
+            ),
           ),
         ),
         TextButton.icon(

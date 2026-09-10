@@ -87,26 +87,10 @@ class _EventsLoggedOutPageState extends ConsumerState<EventsLoggedOutPage> {
       },
       child: eventsAsyncValue.when(
         data: (eventsList) {
-          // Sort events: upcoming first (by startTime asc), then past (by startTime desc)
-          final now = DateTime.now();
-          final sortedEvents = [...eventsList]
-            ..sort((a, b) {
-              final aIsPast = a.startTime.isBefore(now);
-              final bIsPast = b.startTime.isBefore(now);
-
-              if (aIsPast != bIsPast) {
-                // Upcoming events first
-                return aIsPast ? 1 : -1;
-              }
-
-              if (aIsPast) {
-                // Both past: newest first
-                return b.startTime.compareTo(a.startTime);
-              } else {
-                // Both upcoming: earliest first
-                return a.startTime.compareTo(b.startTime);
-              }
-            });
+          // `eventsListProvider` liefert bereits korrekt sortiert: zuerst
+          // zukünftige Events (ASC), dann past (DESC). Kein zusätzlicher
+          // Inline-Sort mehr nötig.
+          final sortedEvents = eventsList;
 
           // Filter popular events (>= 5 participants) - only from upcoming events
           final popularEvents = sortedEvents

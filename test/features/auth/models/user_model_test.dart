@@ -158,6 +158,37 @@ void main() {
 
         expect(user.trackingEnabled, false);
       });
+
+      test('should parse canCreateGroup from JSON', () {
+        final json = {
+          'id': 1,
+          'username': 'testuser',
+          'email': 'test@example.com',
+          'firstname': 'Test',
+          'lastname': 'User',
+          'createdAt': '2024-01-01T00:00:00.000Z',
+          'canCreateGroup': true,
+        };
+
+        final user = User.fromJson(json, "http://test.base.url");
+
+        expect(user.canCreateGroup, true);
+      });
+
+      test('should default canCreateGroup to false when not provided', () {
+        final json = {
+          'id': 1,
+          'username': 'testuser',
+          'email': 'test@example.com',
+          'firstname': 'Test',
+          'lastname': 'User',
+          'createdAt': '2024-01-01T00:00:00.000Z',
+        };
+
+        final user = User.fromJson(json, "http://test.base.url");
+
+        expect(user.canCreateGroup, false);
+      });
     });
 
     group('isTrackingAllowed', () {

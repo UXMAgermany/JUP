@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:jup/shared/widgets/pattern_aware_scaffold.dart';
 import 'package:jup/shared/widgets/sub_page_app_bar.dart';
 import 'package:jup/shared/widgets/text.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
@@ -11,8 +12,8 @@ class ProfileSettingsDesignPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: SubPageAppBar(titleText: "Design", centerTitle: true),
+    return PatternAwareScaffold(
+      appBar: SubPageAppBar(titleText: "Design"),
       body: SafeArea(
         child: ListView(
           children: [

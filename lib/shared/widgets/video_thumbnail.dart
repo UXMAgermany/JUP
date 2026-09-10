@@ -2,7 +2,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:video_thumbnail/video_thumbnail.dart' as vt;
+import 'package:get_thumbnail_video/index.dart' as vt;
+import 'package:get_thumbnail_video/video_thumbnail.dart' as vt;
 
 /// Lokal generiertes Video-Thumbnail mit Play-Icon-Overlay für Block-Previews
 /// in Multi-Step-Wizards. Bytes werden einmal pro Datei erzeugt und im State
@@ -51,7 +52,7 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
       setState(() {
         _bytes = bytes;
         _loading = false;
-        _failed = bytes == null;
+        _failed = bytes.isEmpty;
       });
     } catch (_) {
       if (!mounted) return;
@@ -79,20 +80,30 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
       );
     }
 
-    return Stack(
-      alignment: Alignment.center,
-      fit: StackFit.expand,
-      children: [
-        Image.memory(_bytes!, fit: BoxFit.cover),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.35),
-            shape: BoxShape.circle,
-          ),
-          padding: const EdgeInsets.all(8),
-          child: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
+    return Semantics(
+      label: 'Video-Vorschau',
+      image: true,
+      child: ExcludeSemantics(
+        child: Stack(
+          alignment: Alignment.center,
+          fit: StackFit.expand,
+          children: [
+            Image.memory(_bytes!, fit: BoxFit.cover),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.35),
+                shape: BoxShape.circle,
+              ),
+              padding: const EdgeInsets.all(8),
+              child: const Icon(
+                Icons.play_arrow,
+                color: Colors.white,
+                size: 32,
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

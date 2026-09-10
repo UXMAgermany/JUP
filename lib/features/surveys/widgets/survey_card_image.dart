@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:jup/features/surveys/models/survey_model.dart';
+import 'package:jup/shared/widgets/tappable_network_image.dart';
 
 class SurveyCardImage extends StatefulWidget {
   final SurveyEntry surveyEntry;
@@ -45,37 +46,42 @@ class _SurveyCardImageState extends State<SurveyCardImage> {
                 topRight: Radius.circular(12),
               ),
               child: widget.surveyEntry.imageUrl != null && !_imageLoadFailed
-                  ? CachedNetworkImage(
+                  ? TappableNetworkImage(
                       imageUrl: widget.surveyEntry.imageUrl!,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: double.infinity,
-                      placeholder: (context, url) {
-                        return Container(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerLowest,
-                          child: const Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        );
-                      },
-                      errorWidget: (context, url, error) {
-                        debugPrint('Image error for $url: $error');
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted && !_imageLoadFailed) {
-                            setState(() => _imageLoadFailed = true);
-                          }
-                        });
-                        return const SizedBox.shrink();
-                      },
-                      // Cache sizes for Retina (3x) at 16:9 in card width
-                      maxHeightDiskCache: 675,
-                      maxWidthDiskCache: 1200,
-                      memCacheHeight: 675,
-                      memCacheWidth: 1200,
-                      fadeInDuration: const Duration(milliseconds: 200),
-                      fadeOutDuration: const Duration(milliseconds: 200),
+                      heroTag: 'survey-image-${widget.surveyEntry.id}',
+                      semanticLabel: 'Umfragebild',
+                      child: CachedNetworkImage(
+                        imageUrl: widget.surveyEntry.imageUrl!,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                        placeholder: (context, url) {
+                          return Container(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerLowest,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        },
+                        errorWidget: (context, url, error) {
+                          debugPrint('Image error for $url: $error');
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted && !_imageLoadFailed) {
+                              setState(() => _imageLoadFailed = true);
+                            }
+                          });
+                          return const SizedBox.shrink();
+                        },
+                        // Cache sizes for Retina (3x) at 16:9 in card width
+                        maxHeightDiskCache: 675,
+                        maxWidthDiskCache: 1200,
+                        memCacheHeight: 675,
+                        memCacheWidth: 1200,
+                        fadeInDuration: const Duration(milliseconds: 200),
+                        fadeOutDuration: const Duration(milliseconds: 200),
+                      ),
                     )
                   : LayoutBuilder(
                       builder: (context, constraints) {

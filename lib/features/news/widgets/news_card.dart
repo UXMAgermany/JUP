@@ -1,14 +1,15 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:jup/features/news/models/news_model.dart';
+import 'package:jup/shared/utils/view_count_formatter.dart';
+import 'package:jup/shared/widgets/group_scope_meta.dart';
 import 'package:jup/shared/widgets/new_badge.dart';
 import 'package:jup/shared/widgets/text.dart';
 
 class NewsCard extends StatelessWidget {
   final String header;
   final String? subhead;
-  final String text;
   final String date;
   final String? author;
   final NewsCategory category;
@@ -16,12 +17,17 @@ class NewsCard extends StatelessWidget {
   final String? imageUrl;
   final VoidCallback? onTap;
   final bool isNew;
+  final int? viewCount;
+  final bool isJUPAdmin;
+
+  /// Name der zugeordneten Gruppe (`null` = global). Wird als zweite
+  /// Meta-Zeile unter Autor/Datum gerendert.
+  final String? scopeGroupName;
 
   const NewsCard({
     super.key,
     required this.header,
     this.subhead,
-    required this.text,
     required this.date,
     this.author,
     required this.category,
@@ -29,6 +35,9 @@ class NewsCard extends StatelessWidget {
     this.imageUrl,
     this.onTap,
     this.isNew = false,
+    this.viewCount,
+    this.isJUPAdmin = false,
+    this.scopeGroupName,
   });
 
   String _getCategoryLabel() {
@@ -75,6 +84,8 @@ class NewsCard extends StatelessWidget {
     final brightness = Theme.of(context).brightness;
     final isDarkMode = brightness == Brightness.dark;
 
+    final hasSubhead = subhead != null && subhead!.isNotEmpty;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -119,14 +130,14 @@ class NewsCard extends StatelessWidget {
                     text: header,
                     isNew: isNew,
                     style: Theme.of(context).textTheme.titleMedium,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   // Subtitle
-                  ...[
+                  if (hasSubhead) ...[
                     SizedBox(height: 4),
                     BodyMedium(
-                      text: subhead ?? text,
+                      text: subhead!,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                       overflow: TextOverflow.ellipsis,
                       maxLines: 2,
@@ -156,8 +167,43 @@ class NewsCard extends StatelessWidget {
                         text: date,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
+                      if (isJUPAdmin && viewCount != null) ...[
+                        BodySmall(
+                          text: ' | ',
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        Semantics(
+                          label:
+                              '${formatViewCount(viewCount!)}, nur für Administratoren sichtbar',
+                          child: ExcludeSemantics(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.visibility,
+                                  size: 12,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 4),
+                                BodySmall(
+                                  text: formatViewCount(viewCount!),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
+                  if (scopeGroupName != null && scopeGroupName!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    GroupScopeMeta(groupName: scopeGroupName),
+                  ],
                 ],
               ),
             ),

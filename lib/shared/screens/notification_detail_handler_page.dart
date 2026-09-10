@@ -1,10 +1,13 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jup/features/events/controllers/events_provider.dart';
 import 'package:jup/features/news/controllers/news_provider.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
 import 'package:jup/shared/models/notification_model.dart';
+import 'package:jup/shared/widgets/connection_error_widget.dart';
+import 'package:jup/shared/widgets/pattern_aware_scaffold.dart';
 
 /// Page that handles navigation from notifications to detail pages
 /// Fetches content by documentId and displays detail page with back navigation to overview
@@ -27,24 +30,9 @@ class NotificationDetailHandlerPage extends ConsumerWidget {
       case NotificationType.events:
         return _EventDetailHandler(contentId: contentId);
       case NotificationType.surveys:
-        // Surveys have no detail page — redirect to overview
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.router.navigate(const SurveysNavigationRoute());
-        });
-        return const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        );
       case NotificationType.shorts:
-        // Shorts have no detail page — redirect to shorts feed
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.router.navigate(
-            NewsNavigationRoute(
-              children: [ShortsFeedRoute(initialShortsId: contentId)],
-            ),
-          );
-        });
-        return const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
+        throw UnsupportedError(
+          'NotificationDetailHandlerPage: $type hat keine Detailseite',
         );
     }
   }
@@ -63,7 +51,7 @@ class _NewsDetailHandlerState extends ConsumerState<_NewsDetailHandler> {
   bool _hasNavigated = false;
 
   void _navigateToOverview(BuildContext context) {
-    context.router.navigate(const NewsNavigationRoute());
+    context.router.navigate(const NewsOverviewRoute());
   }
 
   @override
@@ -76,62 +64,48 @@ class _NewsDetailHandlerState extends ConsumerState<_NewsDetailHandler> {
         if (!_hasNavigated) {
           _hasNavigated = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            // Pop the handler page first, then navigate to the proper stack
-            context.router.pop();
+            // Set the tab stack first so the destination is rendered before
+            // this handler is removed — avoids a frame with empty tab content.
             context.router.navigate(
-              NewsNavigationRoute(
+              MainRoute(
                 children: [
-                  const NewsOverviewRoute(),
-                  NewsDetailRoute(newsEntry: newsEntry),
+                  NewsNavigationRoute(
+                    children: [
+                      const NewsOverviewRoute(),
+                      NewsDetailRoute(newsEntry: newsEntry),
+                    ],
+                  ),
                 ],
               ),
             );
+            context.router.removeLast();
           });
         }
 
         // Return loading widget while navigation happens
-        return Scaffold(
-          appBar: AppBar(),
+        return PatternAwareScaffold(
+          appBar: _handlerAppBar(context),
           body: const Center(child: CircularProgressIndicator()),
         );
       },
-      loading: () => Scaffold(
-        appBar: AppBar(),
+      loading: () => PatternAwareScaffold(
+        appBar: _handlerAppBar(context),
         body: const Center(child: CircularProgressIndicator()),
       ),
-      error: (error, stack) {
-        // Auto-navigate to overview after showing error
-        Future.delayed(const Duration(seconds: 4), () {
-          if (context.mounted) {
-            _navigateToOverview(context);
-          }
-        });
-
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Hoppla!'),
-            leading: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => _navigateToOverview(context),
-            ),
+      error: (error, stack) => PatternAwareScaffold(
+        appBar: _handlerAppBar(
+          context,
+          title: const Text('Hoppla!'),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => _navigateToOverview(context),
           ),
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                const SizedBox(height: 16),
-                const Text('Irgendwie konnten wir den Eintrag nicht finden...'),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => _navigateToOverview(context),
-                  child: const Text('Zurück zur Übersicht'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+        ),
+        body: ConnectionErrorWidget(
+          errorMessage: 'Irgendwie konnten wir den Eintrag nicht finden...',
+          onRetry: () => ref.invalidate(newsDetailProvider(widget.contentId)),
+        ),
+      ),
     );
   }
 }
@@ -150,7 +124,7 @@ class _EventDetailHandlerState extends ConsumerState<_EventDetailHandler> {
   bool _hasNavigated = false;
 
   void _navigateToOverview(BuildContext context) {
-    context.router.navigate(const EventsNavigationRoute());
+    context.router.navigate(const EventsOverviewRoute());
   }
 
   @override
@@ -163,67 +137,64 @@ class _EventDetailHandlerState extends ConsumerState<_EventDetailHandler> {
         if (!_hasNavigated) {
           _hasNavigated = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            // Pop the handler page first, then navigate to the proper stack
-            context.router.pop();
+            // Set the tab stack first so the destination is rendered before
+            // this handler is removed — avoids a frame with empty tab content.
             context.router.navigate(
-              EventsNavigationRoute(
+              MainRoute(
                 children: [
-                  const EventsOverviewRoute(),
-                  EventDetailRoute(eventEntry: event),
+                  EventsNavigationRoute(
+                    children: [
+                      const EventsOverviewRoute(),
+                      EventDetailRoute(eventEntry: event),
+                    ],
+                  ),
                 ],
               ),
             );
+            context.router.removeLast();
           });
         }
 
         // Return loading widget while navigation happens
-        return Scaffold(
-          appBar: AppBar(),
+        return PatternAwareScaffold(
+          appBar: _handlerAppBar(context),
           body: const Center(child: CircularProgressIndicator()),
         );
       },
-      loading: () => Scaffold(
-        appBar: AppBar(),
+      loading: () => PatternAwareScaffold(
+        appBar: _handlerAppBar(context),
         body: const Center(child: CircularProgressIndicator()),
       ),
-      error: (error, stack) {
-        // Auto-navigate to overview after showing error
-        Future.delayed(const Duration(seconds: 4), () {
-          if (context.mounted) {
-            _navigateToOverview(context);
-          }
-        });
-
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Hoppla!'),
-            leading: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => _navigateToOverview(context),
-            ),
+      error: (error, stack) => PatternAwareScaffold(
+        appBar: _handlerAppBar(
+          context,
+          title: const Text('Hoppla!'),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => _navigateToOverview(context),
           ),
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                const SizedBox(height: 16),
-                const Text('Irgendwie konnten wir den Eintrag nicht finden...'),
-                const SizedBox(height: 8),
-                Text(
-                  'Weiterleitung zur Übersicht...',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => _navigateToOverview(context),
-                  child: const Text('Zurück zur Übersicht'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+        ),
+        body: ConnectionErrorWidget(
+          errorMessage: 'Irgendwie konnten wir den Eintrag nicht finden...',
+          onRetry: () => ref.invalidate(eventDetailProvider(widget.contentId)),
+        ),
+      ),
     );
   }
+}
+
+/// AppBar für die Handler-Zwischenseiten. Setzt `systemOverlayStyle` wie
+/// [SubPageAppBar], das hier nicht passt, weil der Fehlerzweig ein
+/// Schließen-Icon statt des Zurück-Pfeils braucht.
+AppBar _handlerAppBar(BuildContext context, {Widget? title, Widget? leading}) {
+  final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+  return AppBar(
+    title: title,
+    leading: leading,
+    systemOverlayStyle: SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDarkMode ? Brightness.dark : Brightness.light,
+    ),
+  );
 }

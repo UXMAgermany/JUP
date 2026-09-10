@@ -2,6 +2,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:jup/shared/widgets/pattern_aware_scaffold.dart';
 import 'package:jup/shared/widgets/sub_page_app_bar.dart';
 import 'package:jup/shared/controllers/theme_provider.dart';
 
@@ -14,8 +15,8 @@ class ProfileSettingsThemePage extends ConsumerWidget {
     final themeMode = ref.watch(themeProvider);
     final themeNotifier = ref.read(themeProvider.notifier);
 
-    return Scaffold(
-      appBar: SubPageAppBar(titleText: "Farbmodus", centerTitle: true),
+    return PatternAwareScaffold(
+      appBar: SubPageAppBar(titleText: "Farbmodus"),
       body: SafeArea(
         child: ListView(
           children: [

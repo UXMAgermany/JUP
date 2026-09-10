@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jup/features/shorts/models/shorts_model.dart';
 import 'package:jup/features/files/models/file_model.dart';
+import 'package:jup/features/shorts/models/shorts_model.dart';
 
 void main() {
   group('ShortsEntry', () {
@@ -185,7 +185,7 @@ void main() {
           createdAt: DateTime(2024, 1, 1),
         );
 
-        expect(shortsEntry.getFormattedViewCount(), '42 mal angesehen');
+        expect(shortsEntry.getFormattedViewCount(), '42 Mal angesehen');
       });
 
       test('should format zero views correctly', () {
@@ -196,7 +196,7 @@ void main() {
           createdAt: DateTime(2024, 1, 1),
         );
 
-        expect(shortsEntry.getFormattedViewCount(), '0 mal angesehen');
+        expect(shortsEntry.getFormattedViewCount(), '0 Mal angesehen');
       });
 
       test('should format large view count correctly', () {
@@ -207,7 +207,7 @@ void main() {
           createdAt: DateTime(2024, 1, 1),
         );
 
-        expect(shortsEntry.getFormattedViewCount(), '1000000 mal angesehen');
+        expect(shortsEntry.getFormattedViewCount(), '1000000 Mal angesehen');
       });
     });
   });

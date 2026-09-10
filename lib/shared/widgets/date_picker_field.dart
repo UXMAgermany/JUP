@@ -36,7 +36,7 @@ class DatePickerField extends StatelessWidget {
           isEmpty: dt == null,
           decoration: InputDecoration(
             labelText: label,
-            suffixIcon: const Icon(Icons.calendar_today_outlined),
+            suffixIcon: const Icon(Icons.insert_invitation),
           ),
           child: Text(dt == null ? '' : _format(dt)),
         ),

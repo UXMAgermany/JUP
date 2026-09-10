@@ -1,8 +1,10 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jup/features/achievements/controllers/scan_launcher.dart';
 import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/features/events/controllers/events_provider.dart';
+import 'package:jup/features/groups/controllers/groups_provider.dart';
 import 'package:jup/features/news/controllers/news_provider.dart';
 import 'package:jup/features/shorts/controllers/shorts_provider.dart';
 import 'package:jup/features/surveys/controllers/surveys_provider.dart';
@@ -22,7 +24,7 @@ class MainAppDrawer extends ConsumerWidget {
     AsyncValue<List<T>> asyncList,
     Set<String> seenPosts,
     bool isLoaded,
-    DateTime? firstLaunchDate,
+    DateTime? firstLoginAt,
     String Function(T) getId,
     DateTime Function(T) getCreatedAt,
   ) {
@@ -32,7 +34,7 @@ class MainAppDrawer extends ConsumerWidget {
                 createdAt: getCreatedAt(item),
                 seenPosts: seenPosts,
                 isLoaded: isLoaded,
-                firstLaunchDate: firstLaunchDate,
+                firstLoginAt: firstLoginAt,
               )),
         ) ??
         false;
@@ -42,21 +44,27 @@ class MainAppDrawer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tabs = AutoTabsRouter.of(context);
 
-    final isAuthenticated = ref.watch(authProvider).isAuthenticated;
+    final authState = ref.watch(authProvider);
+    final isAuthenticated = authState.isAuthenticated;
+    final userDocumentId = authState.user?.documentId;
     final persistedPosts = ref.watch(persistedPostsProvider);
     final newsAsync = ref.watch(newsListProvider);
     final shortsAsync = ref.watch(shortsListProvider);
     final eventsAsync = ref.watch(eventsListProvider);
     final surveysAsync = ref.watch(surveysListProvider);
+    final myGroupsAsync = ref.watch(myGroupsProvider);
 
+    // Riverpod-Rebuild-Hook: ohne dieses watch wird der Drawer nicht neu
+    // gebaut, wenn markFirstLoginIfNeeded den State frisch emittet.
+    ref.watch(seenPostsProvider);
     final seenNotifier = ref.read(seenPostsProvider.notifier);
     final isLoaded = seenNotifier.isLoaded;
-    final firstLaunchDate = seenNotifier.firstLaunchDate;
+    final firstLoginAt = seenNotifier.firstLoginAt;
 
     final hasUnseenNews = isAuthenticated &&
-        (_hasNewPosts(newsAsync, persistedPosts, isLoaded, firstLaunchDate,
+        (_hasNewPosts(newsAsync, persistedPosts, isLoaded, firstLoginAt,
                 (e) => e.documentId, (e) => e.createdAt) ||
-            _hasNewPosts(shortsAsync, persistedPosts, isLoaded, firstLaunchDate,
+            _hasNewPosts(shortsAsync, persistedPosts, isLoaded, firstLoginAt,
                 (e) => e.documentId, (e) => e.createdAt));
     final hasUnseenEvents = isAuthenticated &&
         _hasNewPosts(
@@ -64,7 +72,7 @@ class MainAppDrawer extends ConsumerWidget {
               .whenData((events) => events.where((e) => !e.isPast).toList()),
           persistedPosts,
           isLoaded,
-          firstLaunchDate,
+          firstLoginAt,
           (e) => e.documentId,
           (e) => e.createdAt,
         );
@@ -77,15 +85,26 @@ class MainAppDrawer extends ConsumerWidget {
               .toList()),
           persistedPosts,
           isLoaded,
-          firstLaunchDate,
+          firstLoginAt,
           (e) => e.documentId,
           (e) => e.createdAt,
         );
+    // Admin-Gruppen mit offenen Beitrittsanfragen → roter Dot am Gruppen-Item.
+    // Backend liefert pendingRequests nur für Admins befüllt; trotzdem
+    // explizit isAdmin checken, weil Nicht-Admins mit eigener offener
+    // Anfrage einen self-Eintrag bekommen würden.
+    final hasPendingGroupRequests = isAuthenticated &&
+        userDocumentId != null &&
+        (myGroupsAsync.whenOrNull(
+              data: (groups) => groups.any((g) =>
+                  g.isAdmin(userDocumentId) && g.pendingRequests.isNotEmpty),
+            ) ??
+            false);
 
     final topInset = MediaQuery.of(context).padding.top;
     return Theme(
       data: Theme.of(context).copyWith(
-        drawerTheme: Theme.of(context).drawerTheme.copyWith(width: 180),
+        drawerTheme: Theme.of(context).drawerTheme.copyWith(width: 210),
       ),
       // Strip the top safe-area inset so the drawer surface extends behind the
       // status bar / notch / Dynamic Island. The close button below adds it
@@ -116,6 +135,7 @@ class MainAppDrawer extends ConsumerWidget {
                 NavigationElement.news => hasUnseenNews,
                 NavigationElement.events => hasUnseenEvents,
                 NavigationElement.surveys => hasUnseenSurveys,
+                NavigationElement.groups => hasPendingGroupRequests,
                 _ => false,
               };
               return _DrawerNavItem(
@@ -154,9 +174,15 @@ void _onTabSelected(WidgetRef ref, TabsRouter tabsRouter, int index) {
   }
 }
 
-/// Tab-contextual "+ News" / "+ Event" / ... action shown in the drawer
-/// directly below the close button. Visible only for JUP admins; collapses
-/// to nothing for everyone else.
+/// Tab-contextual "+ News" / "+ Event" / "+ Gruppe" / ... action shown in
+/// the drawer directly below the close button.
+///
+/// Visibility rules differ per tab because Gruppen is the first
+/// user-facing creation flow (any authenticated user with no existing
+/// admin role can create one), while News/Events/Umfragen remain JUP-Admin
+/// only:
+///   - News/Events/Umfragen tab → only `isJUPAdmin`
+///   - Gruppen tab → any authenticated user that is not already a group admin
 class _DrawerContextualFab extends ConsumerWidget {
   const _DrawerContextualFab({required this.activeIndex});
 
@@ -164,11 +190,29 @@ class _DrawerContextualFab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isAdmin = ref.watch(authProvider).user?.isJUPAdmin ?? false;
-    if (!isAdmin) return const SizedBox.shrink();
+    final authState = ref.watch(authProvider);
+    final isJUPAdmin = authState.user?.isJUPAdmin ?? false;
+    final isAuthenticated = authState.isAuthenticated;
 
-    final action = _actionFor(activeIndex);
+    final element = activeIndex >= 0 && activeIndex < firstLevelDestinations.length
+        ? firstLevelDestinations[activeIndex]
+        : null;
+
+    final action = _actionFor(element, ref);
     if (action == null) return const SizedBox.shrink();
+
+    final canShow = switch (element) {
+      // Scan ist für jeden verfügbar — auch ausgeloggt (Tap zeigt Login-Karte).
+      NavigationElement.achievements => true,
+      NavigationElement.groups => isAuthenticated &&
+          ref.watch(canUserCreateGroupProvider),
+      NavigationElement.news ||
+      NavigationElement.events ||
+      NavigationElement.surveys =>
+          isAuthenticated && ref.watch(canCreateScopedContentProvider),
+      _ => isJUPAdmin,
+    };
+    if (!canShow) return const SizedBox.shrink();
 
     final colors = Theme.of(context).colorScheme;
     return Padding(
@@ -183,7 +227,7 @@ class _DrawerContextualFab extends ConsumerWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          icon: const Icon(Icons.add),
+          icon: Icon(action.icon),
           label:
               TitleMedium(text: action.label, color: colors.onPrimaryContainer),
           onPressed: () {
@@ -195,11 +239,14 @@ class _DrawerContextualFab extends ConsumerWidget {
     );
   }
 
-  _DrawerFabAction? _actionFor(int index) {
-    final element = index >= 0 && index < firstLevelDestinations.length
-        ? firstLevelDestinations[index]
-        : null;
+  _DrawerFabAction? _actionFor(NavigationElement? element, WidgetRef ref) {
     switch (element) {
+      case NavigationElement.achievements:
+        return _DrawerFabAction(
+          label: 'Scannen',
+          icon: Icons.qr_code_scanner,
+          onPressed: (ctx) => openScannerOrLogin(ctx, ref),
+        );
       case NavigationElement.news:
         return _DrawerFabAction(
           label: 'News',
@@ -215,6 +262,11 @@ class _DrawerContextualFab extends ConsumerWidget {
           label: 'Umfrage',
           onPressed: (ctx) => ctx.router.push(const SurveyCreateRoute()),
         );
+      case NavigationElement.groups:
+        return _DrawerFabAction(
+          label: 'Gruppe',
+          onPressed: (ctx) => ctx.router.push(const GroupCreateRoute()),
+        );
       default:
         return null;
     }
@@ -222,8 +274,13 @@ class _DrawerContextualFab extends ConsumerWidget {
 }
 
 class _DrawerFabAction {
-  const _DrawerFabAction({required this.label, required this.onPressed});
+  const _DrawerFabAction({
+    required this.label,
+    required this.onPressed,
+    this.icon = Icons.add,
+  });
   final String label;
+  final IconData icon;
   final void Function(BuildContext context) onPressed;
 }
 
@@ -231,6 +288,15 @@ class _DrawerFabAction {
 /// full-width [NavigationDrawerDestination]. Mirrors the Figma design
 /// (`rounded-[100px]`, gap 8, padding 16) and only takes as much horizontal
 /// space as its icon + label require.
+String _dotSemanticsHint(NavigationElement element) {
+  switch (element) {
+    case NavigationElement.groups:
+      return 'neue Beitrittsanfragen';
+    default:
+      return 'neue Inhalte';
+  }
+}
+
 class _DrawerNavItem extends StatelessWidget {
   const _DrawerNavItem({
     required this.element,
@@ -257,7 +323,7 @@ class _DrawerNavItem extends StatelessWidget {
           button: true,
           selected: isActive,
           label:
-              '${mapNavigationLabel(element)}${showDot ? ', neue Inhalte' : ''}',
+              '${mapNavigationLabel(element)}${showDot ? ', ${_dotSemanticsHint(element)}' : ''}',
           excludeSemantics: true,
           child: Material(
             color: isActive ? colors.secondaryContainer : Colors.transparent,

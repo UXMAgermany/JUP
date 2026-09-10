@@ -1,5 +1,6 @@
 import 'dart:io';
-import 'package:video_thumbnail/video_thumbnail.dart';
+import 'package:get_thumbnail_video/index.dart';
+import 'package:get_thumbnail_video/video_thumbnail.dart';
 
 /// Manages thumbnail generation and caching to prevent memory overload.
 /// Limits concurrent thumbnail generation and caches results.
@@ -78,14 +79,14 @@ class ThumbnailCacheManager {
   Future<String?> _generateThumbnail(String videoUrl) async {
     _activeGenerations++;
     try {
-      final thumbnailPath = await VideoThumbnail.thumbnailFile(
+      final thumbnail = await VideoThumbnail.thumbnailFile(
         video: videoUrl,
         thumbnailPath: null,
         imageFormat: ImageFormat.JPEG,
         maxWidth: 400,
         quality: 75,
       );
-      return thumbnailPath;
+      return thumbnail.path;
     } catch (e) {
       return null;
     } finally {

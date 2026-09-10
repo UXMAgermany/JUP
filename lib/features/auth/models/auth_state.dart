@@ -27,5 +27,8 @@ class AuthState {
     );
   }
 
-  bool get isAuthenticated => jwt != null && user != null;
+  /// True sobald ein JWT vorliegt — `user` kann beim App-Start ohne Netz
+  /// vorübergehend `null` sein, ohne dass der User auf die Logged-Out-View
+  /// fällt. UI-Stellen, die User-Felder lesen, müssen das null-safe handhaben.
+  bool get isAuthenticated => jwt != null;
 }

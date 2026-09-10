@@ -17,3 +17,6 @@ flutter_native_splash:
     # background color
     color: '#9A7FFE'
     image: assets/icons/JUP.png
+    # Vergrößert das Icon-Fenster der Android-12-Splash-API von ~108dp auf ~128dp.
+    # Identische Farbe wie color → unsichtbarer Kreis, aber Logo wird größer dargestellt.
+    icon_background_color: '#9A7FFE'

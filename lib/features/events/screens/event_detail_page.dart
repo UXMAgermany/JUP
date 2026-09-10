@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jup/features/achievements/controllers/achievement_check.dart';
 import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/features/events/controllers/events_provider.dart';
 import 'package:jup/features/events/models/event_model.dart';
@@ -9,14 +10,17 @@ import 'package:jup/features/events/widgets/event_content_blocks.dart';
 import 'package:jup/features/events/widgets/event_participation_button.dart';
 import 'package:jup/router/controllers/app_router.gr.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:jup/shared/extensions/snackbar_extension.dart';
 import 'package:jup/shared/services/deep_link_service.dart';
+import 'package:jup/shared/services/share_service.dart';
 import 'package:jup/shared/utils/date_format_helper.dart';
+import 'package:jup/shared/utils/view_count_formatter.dart';
 import 'package:jup/shared/widgets/comment_section.dart';
 import 'package:jup/shared/widgets/detail_page_sliver_app_bar.dart';
 import 'package:jup/shared/widgets/event_card_wrapper.dart';
+import 'package:jup/shared/widgets/group_scope_meta.dart';
 import 'package:jup/shared/widgets/login_required_dialog.dart';
 import 'package:jup/shared/widgets/text.dart';
-import 'package:share_plus/share_plus.dart';
 
 @RoutePage()
 class EventDetailPage extends ConsumerStatefulWidget {
@@ -31,6 +35,31 @@ class EventDetailPage extends ConsumerStatefulWidget {
 class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   final ScrollController _scrollController = ScrollController();
   final DeepLinkService _deepLinkService = DeepLinkService();
+  late int _displayViewCount;
+  bool _viewCounted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayViewCount = widget.eventEntry.viewCount;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _viewCounted) return;
+      // incrementViewCount nutzt useUserAuth — ausgeloggt schlägt der Call
+      // serverseitig fehl, daher auch den optimistischen lokalen Increment
+      // überspringen (Konsistenz mit surveys_overview_page).
+      if (!ref.read(authProvider).isAuthenticated) return;
+      _viewCounted = true;
+      setState(() {
+        _displayViewCount++;
+      });
+      ref
+          .read(eventsControllerProvider)
+          .incrementViewCount(widget.eventEntry.documentId);
+      ref
+          .read(eventsListProvider.notifier)
+          .incrementViewCount(widget.eventEntry.documentId);
+    });
+  }
 
   @override
   void dispose() {
@@ -43,6 +72,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
     final authState = ref.watch(authProvider);
     final currentUser = authState.user;
     final userId = currentUser?.id.toString();
+    final isJUPAdmin = currentUser?.isJUPAdmin ?? false;
     final brightness = Theme.of(context).brightness;
     bool isDarkMode = brightness == Brightness.dark;
 
@@ -69,18 +99,33 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
 
     onParticipateToggle() async {
       if (userId == null) return;
-      await ref
-          .read(
-            eventParticipationProvider(widget.eventEntry.documentId).notifier,
-          )
-          .toggleParticipation(userId);
+      try {
+        await ref
+            .read(
+              eventParticipationProvider(widget.eventEntry.documentId).notifier,
+            )
+            .toggleParticipation(
+              userId: userId,
+              isCurrentlyParticipating: isParticipating,
+            );
 
-      // Update the events list with the new participation state
-      final updatedEvent = ref
-          .read(eventParticipationProvider(widget.eventEntry.documentId))
-          .value;
-      if (updatedEvent != null) {
-        ref.read(eventsListProvider.notifier).updateEventInList(updatedEvent);
+        final updatedEvent = ref
+            .read(eventParticipationProvider(widget.eventEntry.documentId))
+            .value;
+        if (updatedEvent != null) {
+          ref.read(eventsListProvider.notifier).updateEventInList(updatedEvent);
+        }
+
+        // isParticipating is the state BEFORE the toggle — false means the user
+        // just joined, which is the only case that counts for "Erlebnishungrig".
+        if (!isParticipating && context.mounted) {
+          await runAchievementCheck(context, ref,
+              keys: ['allgemein.erlebnishungrig']);
+        }
+      } catch (e) {
+        if (context.mounted) {
+          context.showAppSnackbar('Hat nicht geklappt: $e');
+        }
       }
     }
 
@@ -96,12 +141,14 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
             isDarkMode: isDarkMode,
             heroTag: 'detail-hero-event-${widget.eventEntry.documentId}',
             onBackPressed: () => context.router.maybePop(),
-            onSharePressed: () async {
-              final deepLink = _deepLinkService.generateEventLink(
+            onSharePressed: () => ShareService().shareDeepLink(
+              context: context,
+              deepLink: _deepLinkService.generateEventLink(
                 widget.eventEntry.documentId,
-              );
-              await SharePlus.instance.share(ShareParams(text: deepLink));
-            },
+              ),
+              title: widget.eventEntry.title,
+              contentTypeLabel: 'Event',
+            ),
           ),
 
           // Main content section
@@ -154,6 +201,8 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                               isParticipating: isParticipating,
                               onTap: onParticipateToggle,
                               isLoading: eventParticipationState.isLoading,
+                              isSignupClosed: currentEvent.isSignupClosed &&
+                                  !isParticipating,
                             ),
                           Row(
                             children: [
@@ -191,12 +240,12 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                         children: [
                           Icon(
                             Icons.event,
-                            size: 16,
+                            size: 12,
                             color: Theme.of(
                               context,
                             ).colorScheme.onSurfaceVariant,
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 4),
                           BodySmall(
                             text: DateFormatHelper.formatDateTime(
                               widget.eventEntry.startTime,
@@ -206,7 +255,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                             ).colorScheme.onSurfaceVariant,
                           ),
                           if (widget.eventEntry.isRepeating()) ...[
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 4),
                             Icon(
                               Icons.autorenew,
                               size: 12,
@@ -221,13 +270,13 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                       Row(
                         children: [
                           Icon(
-                            Icons.pin_drop,
-                            size: 16,
+                            Icons.location_on,
+                            size: 12,
                             color: Theme.of(
                               context,
                             ).colorScheme.onSurfaceVariant,
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 4),
                           Expanded(
                             child: BodySmall(
                               text: widget.eventEntry.location,
@@ -238,6 +287,40 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                           ),
                         ],
                       ),
+                      if (widget.eventEntry.scopeGroupName != null &&
+                          widget.eventEntry.scopeGroupName!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        GroupScopeMeta(
+                          groupName: widget.eventEntry.scopeGroupName,
+                        ),
+                      ],
+                      if (isJUPAdmin) ...[
+                        const SizedBox(height: 8),
+                        Semantics(
+                          label:
+                              '${formatViewCount(_displayViewCount)}, nur für Administratoren sichtbar',
+                          child: ExcludeSemantics(
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.visibility,
+                                  size: 12,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 4),
+                                BodySmall(
+                                  text: formatViewCount(_displayViewCount),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -263,29 +346,33 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                   ).colorScheme.surfaceContainer,
                   onSubmitComment:
                       (documentId, text, userId, currentComments) async {
-                        final controller = ref.read(eventsControllerProvider);
-                        final updatedEvent = await controller.addComment(
-                          documentId,
-                          text,
-                          userId,
-                          currentComments,
-                        );
-                        // Update both the list provider and the participation provider
-                        ref
-                            .read(eventsListProvider.notifier)
-                            .updateEventInList(updatedEvent);
-                        ref
-                            .read(
-                              eventParticipationProvider(documentId).notifier,
-                            )
-                            .updateEvent(updatedEvent);
-                      },
-                  onDeleteComment: (documentId, commentId, currentComments) async {
+                    final controller = ref.read(eventsControllerProvider);
+                    final updatedEvent = await controller.addComment(
+                      documentId,
+                      text,
+                      userId,
+                      currentComments,
+                    );
+                    // Update both the list provider and the participation provider
+                    ref
+                        .read(eventsListProvider.notifier)
+                        .updateEventInList(updatedEvent);
+                    ref
+                        .read(
+                          eventParticipationProvider(documentId).notifier,
+                        )
+                        .updateEvent(updatedEvent);
+                    if (context.mounted) {
+                      await runAchievementCheck(context, ref,
+                          keys: ['allgemein.wortgewandt']);
+                    }
+                  },
+                  onDeleteComment:
+                      (documentId, commentId, currentComments) async {
                     final controller = ref.read(eventsControllerProvider);
                     final updatedEvent = await controller.deleteComment(
                       documentId,
                       commentId,
-                      currentComments,
                     );
                     // Update both the list provider and the participation provider
                     ref

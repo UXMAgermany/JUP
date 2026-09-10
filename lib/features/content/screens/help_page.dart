@@ -9,6 +9,7 @@ import 'package:jup/features/content/models/help_model.dart';
 import 'package:jup/router/models/navigation_entry.dart';
 import 'package:jup/router/screens/main_page.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
+import 'package:jup/shared/extensions/snackbar_extension.dart';
 import 'package:jup/shared/utils/url_helper.dart';
 import 'package:jup/shared/widgets/text.dart';
 import 'package:jup/shared/controllers/scroll_controller_provider.dart';
@@ -84,7 +85,6 @@ class _HelpPageState extends ConsumerState<HelpPage>
     // Remove spaces and format for tel: URL
     final cleanNumber = phoneNumber.replaceAll(' ', '');
     final url = 'tel:$cleanNumber';
-    final messenger = ScaffoldMessenger.of(context);
 
     try {
       final uri = Uri.parse(url);
@@ -94,14 +94,12 @@ class _HelpPageState extends ConsumerState<HelpPage>
       );
 
       if (!launched) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Anruf konnte nicht getätigt werden.')),
-        );
+        if (!mounted) return;
+        context.showAppSnackbar('Anruf konnte nicht getätigt werden.');
       }
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Fehler beim Anrufen: ${e.toString()}')),
-      );
+      if (!mounted) return;
+      context.showAppSnackbar('Fehler beim Anrufen: ${e.toString()}');
     }
   }
 
@@ -109,7 +107,6 @@ class _HelpPageState extends ConsumerState<HelpPage>
     // Remove spaces and format for international use
     final cleanNumber = phoneNumber.replaceAll(' ', '');
     final url = 'https://wa.me/$cleanNumber';
-    final messenger = ScaffoldMessenger.of(context);
 
     try {
       final uri = Uri.parse(url);
@@ -119,26 +116,20 @@ class _HelpPageState extends ConsumerState<HelpPage>
       );
 
       if (!launched) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text(
-              'WhatsApp konnte nicht geöffnet werden. Ist es installiert?',
-            ),
-          ),
+        if (!mounted) return;
+        context.showAppSnackbar(
+          'WhatsApp konnte nicht geöffnet werden. Ist es installiert?',
         );
       }
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Fehler beim Öffnen von WhatsApp: ${e.toString()}'),
-        ),
+      if (!mounted) return;
+      context.showAppSnackbar(
+        'Fehler beim Öffnen von WhatsApp: ${e.toString()}',
       );
     }
   }
 
   Future<void> openWebsite(String url) async {
-    final messenger = ScaffoldMessenger.of(context);
-
     try {
       final uri = Uri.parse(url);
       final launched = await launchUrl(
@@ -147,17 +138,13 @@ class _HelpPageState extends ConsumerState<HelpPage>
       );
 
       if (!launched) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Website konnte nicht geöffnet werden.'),
-          ),
-        );
+        if (!mounted) return;
+        context.showAppSnackbar('Website konnte nicht geöffnet werden.');
       }
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Fehler beim Öffnen der Website: ${e.toString()}'),
-        ),
+      if (!mounted) return;
+      context.showAppSnackbar(
+        'Fehler beim Öffnen der Website: ${e.toString()}',
       );
     }
   }
@@ -168,7 +155,6 @@ class _HelpPageState extends ConsumerState<HelpPage>
     // Use Google Maps URL format which works on both iOS and Android
     final url =
         'https://www.google.com/maps/search/?api=1&query=$encodedAddress';
-    final messenger = ScaffoldMessenger.of(context);
 
     try {
       final uri = Uri.parse(url);
@@ -178,22 +164,17 @@ class _HelpPageState extends ConsumerState<HelpPage>
       );
 
       if (!launched) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Karte konnte nicht geöffnet werden.')),
-        );
+        if (!mounted) return;
+        context.showAppSnackbar('Karte konnte nicht geöffnet werden.');
       }
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Fehler beim Öffnen der Karte: ${e.toString()}'),
-        ),
-      );
+      if (!mounted) return;
+      context.showAppSnackbar('Fehler beim Öffnen der Karte: ${e.toString()}');
     }
   }
 
   Future<void> sendEmail(String email) async {
     final url = 'mailto:$email';
-    final messenger = ScaffoldMessenger.of(context);
 
     try {
       final uri = Uri.parse(url);
@@ -203,17 +184,13 @@ class _HelpPageState extends ConsumerState<HelpPage>
       );
 
       if (!launched) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('E-Mail App konnte nicht geöffnet werden.'),
-          ),
-        );
+        if (!mounted) return;
+        context.showAppSnackbar('E-Mail App konnte nicht geöffnet werden.');
       }
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Fehler beim Öffnen der E-Mail App: ${e.toString()}'),
-        ),
+      if (!mounted) return;
+      context.showAppSnackbar(
+        'Fehler beim Öffnen der E-Mail App: ${e.toString()}',
       );
     }
   }

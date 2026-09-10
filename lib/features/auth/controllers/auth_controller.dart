@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:jup/shared/utils/date_format_helper.dart';
 import 'package:jup/features/auth/models/auth_state.dart';
 import 'package:jup/features/auth/models/user_model.dart';
+import 'package:jup/shared/controllers/seen_posts_provider.dart';
 import 'package:jup/shared/controllers/session_manager.dart';
 import 'package:jup/features/events/controllers/events_provider.dart';
-import 'package:jup/features/surveys/controllers/surveys_provider.dart';
 import 'package:jup/shared/services/api_client.dart';
 import 'package:jup/shared/services/matomo_service.dart';
 import 'package:jup/shared/controllers/notification_provider.dart';
@@ -47,39 +47,43 @@ class AuthNotifier extends StateNotifier<AuthState> {
     DateTime birthday,
     String? avatarPath,
     bool trackingEnabled,
+    bool canCreateGroup,
   ) async {
     state = state.copyWith(isLoading: true);
 
-    final response = await _client.post(
-      '/api/auth/local/register',
-      body: {
-        "email": email,
-        "password": password,
-        "username": nickname,
-        "firstname": firstname,
-        "lastname": lastname,
-        "birthday": DateFormatHelper.formatToStrapiDate(birthday),
-        "avatarPath": avatarPath,
-        "trackingEnabled": trackingEnabled,
-      },
-    );
-
-    state = state.copyWith(isLoading: false);
-
-    if (response.statusCode != 200) {
-      String? errorMessage;
-      try {
-        final responseBody = jsonDecode(response.body);
-        if (responseBody is Map<String, dynamic>) {
-          errorMessage = _extractErrorMessage(responseBody);
-        }
-      } catch (_) {}
-      throw AppException(
-        ErrorHandler.parseError(
-          errorMessage ?? 'Fehlercode ${response.statusCode}',
-          statusCode: response.statusCode,
-        ),
+    try {
+      final response = await _client.post(
+        '/api/auth/local/register',
+        body: {
+          "email": email,
+          "password": password,
+          "username": nickname,
+          "firstname": firstname,
+          "lastname": lastname,
+          "birthday": DateFormatHelper.formatToStrapiDate(birthday),
+          "avatarPath": avatarPath,
+          "trackingEnabled": trackingEnabled,
+          "canCreateGroup": canCreateGroup,
+        },
       );
+
+      if (response.statusCode != 200) {
+        String? errorMessage;
+        try {
+          final responseBody = jsonDecode(response.body);
+          if (responseBody is Map<String, dynamic>) {
+            errorMessage = _extractErrorMessage(responseBody);
+          }
+        } catch (_) {}
+        throw AppException(
+          ErrorHandler.parseError(
+            errorMessage ?? 'Fehlercode ${response.statusCode}',
+            statusCode: response.statusCode,
+          ),
+        );
+      }
+    } finally {
+      state = state.copyWith(isLoading: false);
     }
   }
 
@@ -102,12 +106,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
             jwt: responseBody["jwt"],
             user: user,
             isLoading: false,
+            isInitialized: true,
           );
 
-          MatomoService().updateTrackingConsent(user);
+          await _ref.read(seenPostsProvider.notifier).markFirstLoginIfNeeded();
 
-          _ref.invalidate(surveysListProvider);
-          _ref.invalidate(surveysListByTypeProvider);
+          MatomoService().updateTrackingConsent(user);
 
           try {
             final notificationService = _ref.read(notificationServiceProvider);
@@ -162,6 +166,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         final responseBody = jsonDecode(response.body);
         final user = User.fromJson(responseBody, _client.baseUrl);
         state = state.copyWith(jwt: token, user: user, isInitialized: true);
+        // Bestandsuser-Migration: ohne diesen Hook bekämen User, die schon
+        // mit gültigem JWT durchstarten, nie ein firstLoginAt und der
+        // Badge-Cutoff bliebe leer.
+        await _ref.read(seenPostsProvider.notifier).markFirstLoginIfNeeded();
         MatomoService().updateTrackingConsent(user);
         try {
           final notificationService = _ref.read(notificationServiceProvider);
@@ -169,91 +177,113 @@ class AuthNotifier extends StateNotifier<AuthState> {
           await notificationService.syncFcmTokenToBackend();
           await notificationService.subscribeToEnabledTopics();
         } catch (_) {}
-      } else {
+      } else if (response.statusCode == 401) {
         try {
           final notificationService = _ref.read(notificationServiceProvider);
           await notificationService.unsubscribeFromAllTopics();
         } catch (_) {}
         await _sessionManager.clearToken();
         state = state.copyWith(isInitialized: true);
+      } else {
+        // Server-Fehler (5xx etc.) sagen nichts über die Gültigkeit des
+        // Tokens aus — z.B. Backend-Deploy beim App-Start. Nur ein 401
+        // darf ausloggen, sonst bleibt die Session wie im Netzwerk-
+        // Fehlerfall unten bestehen.
+        state = state.copyWith(jwt: token, isInitialized: true);
       }
     } catch (e) {
-      state = state.copyWith(isInitialized: true);
+      // Netzwerk-/Timeout-Fehler beim App-Start: Token bleibt gültig, der
+      // User soll nicht ausgeloggt werden, nur weil gerade kein Netz da
+      // ist. Der OfflineBanner kommuniziert den Zustand; die Profile-Page
+      // zeigt einen Retry-Button, mit dem `loadSession()` erneut anstößt,
+      // sobald die Verbindung zurück ist.
+      state = state.copyWith(jwt: token, isInitialized: true);
     }
   }
 
   Future<void> deleteProfile() async {
-    state = state.copyWith(isLoading: true);
     if (state.user == null) return;
+    state = state.copyWith(isLoading: true);
 
-    final response = await _client.delete(
-      '/api/users/${state.user!.id}',
-      useUserAuth: true,
-    );
-
-    state = state.copyWith(isLoading: false);
-
-    if (response.statusCode != 200) {
-      final responseBody = jsonDecode(response.body);
-      throw AppException(
-        ErrorHandler.parseError(
-          _extractErrorMessage(responseBody) ?? 'Request failed',
-          statusCode: response.statusCode,
-        ),
+    try {
+      final response = await _client.delete(
+        '/api/users/${state.user!.id}',
+        useUserAuth: true,
       );
+
+      if (response.statusCode != 200) {
+        final responseBody = jsonDecode(response.body);
+        throw AppException(
+          ErrorHandler.parseError(
+            _extractErrorMessage(responseBody) ?? 'Request failed',
+            statusCode: response.statusCode,
+          ),
+        );
+      }
+    } finally {
+      state = state.copyWith(isLoading: false);
     }
+
+    // Clear local auth state after the backend delete succeeded so the user
+    // cannot remain client-side "authenticated" against a deleted account.
+    await logout();
   }
 
   Future<User?> updateAvatar(String avatarPath) async {
-    state = state.copyWith(isLoading: true);
     if (state.user == null) throw AppException("Unauthorized");
+    state = state.copyWith(isLoading: true);
 
-    final response = await _client.put(
-      '/api/users/${state.user!.id}',
-      body: {"avatarPath": avatarPath},
-      useUserAuth: true,
-    );
-
-    state = state.copyWith(isLoading: false);
-
-    if (response.statusCode == 200) {
-      final user = User.fromJson(jsonDecode(response.body), _client.baseUrl);
-      state = state.copyWith(user: user);
-      return user;
-    } else {
-      final responseBody = jsonDecode(response.body);
-      throw AppException(
-        ErrorHandler.parseError(
-          _extractErrorMessage(responseBody) ?? 'Request failed',
-          statusCode: response.statusCode,
-        ),
+    try {
+      final response = await _client.put(
+        '/api/users/${state.user!.id}',
+        body: {"avatarPath": avatarPath},
+        useUserAuth: true,
       );
+
+      if (response.statusCode == 200) {
+        final user = User.fromJson(jsonDecode(response.body), _client.baseUrl);
+        state = state.copyWith(user: user);
+        return user;
+      } else {
+        final responseBody = jsonDecode(response.body);
+        throw AppException(
+          ErrorHandler.parseError(
+            _extractErrorMessage(responseBody) ?? 'Request failed',
+            statusCode: response.statusCode,
+          ),
+        );
+      }
+    } finally {
+      state = state.copyWith(isLoading: false);
     }
   }
 
   Future<User?> updateNickname(String nickname) async {
-    state = state.copyWith(isLoading: true);
     if (state.user == null) throw AppException("Unauthorized");
+    state = state.copyWith(isLoading: true);
 
-    final response = await _client.put(
-      '/api/users/${state.user!.id}',
-      body: {"username": nickname},
-      useUserAuth: true,
-    );
-
-    if (response.statusCode == 200) {
-      final user = User.fromJson(jsonDecode(response.body), _client.baseUrl);
-      state = state.copyWith(user: user, isLoading: false);
-      return user;
-    } else {
-      state = state.copyWith(isLoading: false);
-      final responseBody = jsonDecode(response.body);
-      throw AppException(
-        ErrorHandler.parseError(
-          _extractErrorMessage(responseBody) ?? 'Request failed',
-          statusCode: response.statusCode,
-        ),
+    try {
+      final response = await _client.put(
+        '/api/users/${state.user!.id}',
+        body: {"username": nickname},
+        useUserAuth: true,
       );
+
+      if (response.statusCode == 200) {
+        final user = User.fromJson(jsonDecode(response.body), _client.baseUrl);
+        state = state.copyWith(user: user);
+        return user;
+      } else {
+        final responseBody = jsonDecode(response.body);
+        throw AppException(
+          ErrorHandler.parseError(
+            _extractErrorMessage(responseBody) ?? 'Request failed',
+            statusCode: response.statusCode,
+          ),
+        );
+      }
+    } finally {
+      state = state.copyWith(isLoading: false);
     }
   }
 
@@ -261,50 +291,54 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String currentPassword,
     String newPassword,
   ) async {
-    state = state.copyWith(isLoading: true);
     if (state.user == null) throw AppException("Unauthorized");
+    state = state.copyWith(isLoading: true);
 
-    final response = await _client.post(
-      '/api/auth/change-password',
-      body: {
-        "currentPassword": currentPassword,
-        "password": newPassword,
-        "passwordConfirmation": newPassword,
-      },
-      useUserAuth: true,
-    );
-
-    state = state.copyWith(isLoading: false);
-
-    if (response.statusCode != 200) {
-      final responseBody = jsonDecode(response.body);
-      throw AppException(
-        ErrorHandler.parseError(
-          _extractErrorMessage(responseBody) ?? 'Request failed',
-          statusCode: response.statusCode,
-        ),
+    try {
+      final response = await _client.post(
+        '/api/auth/change-password',
+        body: {
+          "currentPassword": currentPassword,
+          "password": newPassword,
+          "passwordConfirmation": newPassword,
+        },
+        useUserAuth: true,
       );
+
+      if (response.statusCode != 200) {
+        final responseBody = jsonDecode(response.body);
+        throw AppException(
+          ErrorHandler.parseError(
+            _extractErrorMessage(responseBody) ?? 'Request failed',
+            statusCode: response.statusCode,
+          ),
+        );
+      }
+    } finally {
+      state = state.copyWith(isLoading: false);
     }
   }
 
   Future<void> forgotPassword(String email) async {
     state = state.copyWith(isLoading: true);
 
-    final response = await _client.post(
-      '/api/auth/forgot-password',
-      body: {"email": email},
-    );
-
-    state = state.copyWith(isLoading: false);
-
-    if (response.statusCode != 200) {
-      final responseBody = jsonDecode(response.body);
-      throw AppException(
-        ErrorHandler.parseError(
-          _extractErrorMessage(responseBody) ?? 'Request failed',
-          statusCode: response.statusCode,
-        ),
+    try {
+      final response = await _client.post(
+        '/api/auth/forgot-password',
+        body: {"email": email},
       );
+
+      if (response.statusCode != 200) {
+        final responseBody = jsonDecode(response.body);
+        throw AppException(
+          ErrorHandler.parseError(
+            _extractErrorMessage(responseBody) ?? 'Request failed',
+            statusCode: response.statusCode,
+          ),
+        );
+      }
+    } finally {
+      state = state.copyWith(isLoading: false);
     }
   }
 
@@ -335,9 +369,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     await _sessionManager.clearToken();
     MatomoService().updateTrackingConsent(null);
-    _ref.invalidate(surveysListProvider);
-    _ref.invalidate(surveysListByTypeProvider);
-    state = const AuthState();
+    // isInitialized bleibt true: die Auth-Initialisierung dieses App-Laufs ist
+    // abgeschlossen und wird nicht erneut durchlaufen. Würde der State hier
+    // komplett auf isInitialized=false zurückgesetzt, hinge der Profil-Tab nach
+    // einem erneuten Login (ohne Neustart) dauerhaft im Lade-Spinner.
+    state = const AuthState(isInitialized: true);
   }
 
   Future<void> toggleEventBookmark(int eventId) async {

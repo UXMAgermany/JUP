@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in JUP, please report it responsibly:
+If you discover a security vulnerability in JUP!, please report it responsibly:
 
 1. **Do NOT** open a public issue
 2. Email your findings to the address configured in `SUPPORT_EMAIL` environment variable

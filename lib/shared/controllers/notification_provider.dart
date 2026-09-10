@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:jup/main.dart';
+import 'package:jup/shared/models/app_exception.dart';
 import 'package:jup/shared/models/notification_model.dart';
 import 'package:jup/shared/services/api_client.dart';
 import 'package:jup/shared/services/notification_service.dart';
@@ -47,9 +48,17 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
           );
           return;
         }
+        // Seed the backend with the current "Meine Gruppen" prefs alongside the
+        // token, so a fresh login has the correct delivery state server-side.
+        final settings = await storage.getSettings();
         final response = await client.put(
           '/api/users/$userId',
-          body: {'fcmToken': token},
+          body: {
+            'fcmToken': token,
+            'groupNewsEnabled': settings.groupNewsEnabled,
+            'groupEventsEnabled': settings.groupEventsEnabled,
+            'groupSurveysEnabled': settings.groupSurveysEnabled,
+          },
           useUserAuth: true,
         );
         if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -93,14 +102,45 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
   return service;
 });
 
+/// Pushes the "Meine Gruppen" preferences to the backend so the server can
+/// decide delivery for group-scoped pushes (these are sent directly to device
+/// tokens and bypass the local topic subscriptions). Returns true on success.
+Future<bool> syncGroupNotificationPrefs(
+  StrapiClient client,
+  String userId,
+  NotificationSettings settings,
+) async {
+  final response = await client.put(
+    '/api/users/$userId',
+    body: {
+      'groupNewsEnabled': settings.groupNewsEnabled,
+      'groupEventsEnabled': settings.groupEventsEnabled,
+      'groupSurveysEnabled': settings.groupSurveysEnabled,
+    },
+    useUserAuth: true,
+  );
+  return response.statusCode >= 200 && response.statusCode < 300;
+}
+
 // Settings state notifier
 class NotificationSettingsNotifier
     extends StateNotifier<AsyncValue<NotificationSettings>> {
   final NotificationSettingsStorage _storage;
   final NotificationService _service;
 
-  NotificationSettingsNotifier(this._storage, this._service)
-    : super(const AsyncValue.loading()) {
+  /// Invoked after a "Meine Gruppen" preference changes, so the provider can
+  /// sync the new state to the backend (where it actually gates delivery).
+  final Future<void> Function(NotificationSettings settings)?
+  _onGroupPrefsChanged;
+
+  NotificationSettingsNotifier(
+    this._storage,
+    this._service, {
+    Future<void> Function(NotificationSettings settings)? onGroupPrefsChanged,
+    // A private field can't be a named initializing formal, so assign here.
+    // ignore: prefer_initializing_formals
+  }) : _onGroupPrefsChanged = onGroupPrefsChanged,
+       super(const AsyncValue.loading()) {
     _loadSettings();
   }
 
@@ -150,6 +190,41 @@ class NotificationSettingsNotifier
     });
   }
 
+  // "Meine Gruppen" toggles — sync-first: die Zustellung wird serverseitig
+  // anhand dieser Felder gegated, also erst zum Backend syncen und nur bei
+  // Erfolg lokal persistieren. So können lokaler Toggle und Server-Zustand
+  // nicht still auseinanderlaufen; ein Sync-Fehler lässt den alten Zustand
+  // stehen und propagiert zum UI (Snackbar). Kein Topic-(Un)Subscribe hier:
+  // Gruppen-Pushes gehen direkt an Device-Tokens.
+  Future<void> setGroupNewsEnabled(bool enabled) => _updateGroupPref(
+    (settings) => settings.copyWith(groupNewsEnabled: enabled),
+    () => _storage.setGroupNewsEnabled(enabled),
+  );
+
+  Future<void> setGroupEventsEnabled(bool enabled) => _updateGroupPref(
+    (settings) => settings.copyWith(groupEventsEnabled: enabled),
+    () => _storage.setGroupEventsEnabled(enabled),
+  );
+
+  Future<void> setGroupSurveysEnabled(bool enabled) => _updateGroupPref(
+    (settings) => settings.copyWith(groupSurveysEnabled: enabled),
+    () => _storage.setGroupSurveysEnabled(enabled),
+  );
+
+  Future<void> _updateGroupPref(
+    NotificationSettings Function(NotificationSettings settings) apply,
+    Future<void> Function() persist,
+  ) async {
+    final currentState = state;
+    if (!currentState.hasValue) return;
+
+    final updated = apply(currentState.value!);
+    // Wirft bei fehlgeschlagenem Sync — Toggle bleibt dann unverändert.
+    await _onGroupPrefsChanged?.call(updated);
+    await persist();
+    state = AsyncValue.data(updated);
+  }
+
   Future<void> _updateSetting(
     Future<NotificationSettings> Function(NotificationSettings settings) update,
   ) async {
@@ -180,7 +255,31 @@ final notificationSettingsProvider =
     >((ref) {
       final storage = ref.watch(notificationStorageProvider);
       final service = ref.watch(notificationServiceProvider);
-      return NotificationSettingsNotifier(storage, service);
+      final client = ref.watch(strapiClientProvider);
+      return NotificationSettingsNotifier(
+        storage,
+        service,
+        onGroupPrefsChanged: (settings) async {
+          final authState = ref.read(authProvider);
+          if (!authState.isAuthenticated || authState.user == null) {
+            debugPrint(
+              '[GroupPrefs] skip backend sync — user not authenticated',
+            );
+            return;
+          }
+          final userId = authState.user!.id;
+          final ok = await syncGroupNotificationPrefs(
+            client,
+            userId.toString(),
+            settings,
+          );
+          if (!ok) {
+            debugPrint('[GroupPrefs] backend rejected group prefs sync');
+            throw AppException('Einstellung konnte nicht gespeichert werden.');
+          }
+          debugPrint('[GroupPrefs] synced to backend for user $userId');
+        },
+      );
     });
 
 // FCM token provider

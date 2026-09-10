@@ -11,6 +11,7 @@ import 'package:jup/router/controllers/app_router.gr.dart';
 import 'package:jup/router/models/navigation_entry.dart';
 import 'package:jup/router/screens/main_page.dart';
 import 'package:jup/shared/controllers/scroll_controller_provider.dart';
+import 'package:jup/shared/widgets/connection_error_widget.dart';
 
 @RoutePage()
 class ProfilePage extends ConsumerStatefulWidget {
@@ -24,6 +25,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   final ScrollController _scrollController = ScrollController();
   late final int _tabIndex = tabIndexOf(NavigationElement.profile);
   bool _isRegistered = false;
+  bool _isRetrying = false;
+
+  Future<void> _retryLoadSession() async {
+    if (_isRetrying) return;
+    setState(() => _isRetrying = true);
+    try {
+      await ref.read(authProvider.notifier).loadSession();
+    } catch (_) {
+      // Fehlermeldung steckt im weiterhin null bleibenden user — UI rendert
+      // dann erneut das ConnectionErrorWidget mit Retry-Button.
+    }
+    if (mounted) setState(() => _isRetrying = false);
+  }
 
   @override
   void initState() {
@@ -60,15 +74,34 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     final User? user = authState.user;
 
-    if (authState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+    if (authState.isLoading || !authState.isInitialized) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    if (user == null || !authState.isAuthenticated) {
+    if (!authState.isAuthenticated) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         context.router.replaceAll([const AuthRoute()]);
       });
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (user == null) {
+      // JWT vorhanden, aber User wurde nicht geladen (Netzwerkfehler beim
+      // App-Start). Während ein Retry läuft, Spinner zeigen — sonst das
+      // bekannte Sad-Star-Widget mit „Nochmal probieren"-Button.
+      if (_isRetrying) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: ConnectionErrorWidget(
+              errorMessage: "Dein Profil konnte nicht geladen werden.",
+              onRetry: _retryLoadSession,
+            ),
+          ),
+        ),
+      );
     }
 
     // At this point, user is guaranteed to be non-null

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jup/features/news/models/wifi_password_model.dart';
+import 'package:jup/shared/extensions/snackbar_extension.dart';
 import 'package:jup/shared/utils/date_format_helper.dart';
 import 'package:jup/shared/widgets/text.dart';
 
@@ -66,9 +67,8 @@ class WifiPasswordBanner extends StatelessWidget {
                     );
                     if (context.mounted) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Jup, kopiert.")),
-                        );
+                        if (!context.mounted) return;
+                        context.showAppSnackbar("Jup, kopiert.");
                       });
                     }
                   },

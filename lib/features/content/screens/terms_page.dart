@@ -5,6 +5,7 @@ import 'package:jup/features/content/controllers/help_provider.dart';
 import 'package:jup/shared/extensions/padding_extension.dart';
 import 'package:jup/shared/theme/markdown_config.dart';
 import 'package:jup/shared/widgets/async_state_builder.dart';
+import 'package:jup/shared/widgets/pattern_aware_scaffold.dart';
 import 'package:jup/shared/widgets/sub_page_app_bar.dart';
 import 'package:markdown_widget/widget/markdown_block.dart';
 
@@ -16,8 +17,8 @@ class TermsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final termsAsync = ref.watch(termsProvider);
 
-    return Scaffold(
-      appBar: SubPageAppBar(titleText: "Nutzungs-\u00ADbedingungen"),
+    return PatternAwareScaffold(
+      appBar: SubPageAppBar(titleText: "Nutzungsbedingungen"),
       body: AsyncStateBuilder(
         value: termsAsync,
         onRetry: () => ref.invalidate(termsProvider),

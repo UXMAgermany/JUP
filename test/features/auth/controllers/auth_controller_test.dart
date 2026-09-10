@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mockito/annotations.dart';
@@ -22,12 +24,14 @@ void main() {
   group('AuthNotifier', () {
     late MockSessionManager mockSessionManager;
     late MockNotificationService mockNotificationService;
+    late strapi_mocks.MockStrapiClient mockStrapiClient;
     late ProviderContainer container;
     late AuthNotifier authNotifier;
 
     setUp(() {
       mockSessionManager = MockSessionManager();
       mockNotificationService = MockNotificationService();
+      mockStrapiClient = strapi_mocks.MockStrapiClient();
       // Provide default stub for getToken to prevent MissingStubError
       when(mockSessionManager.getToken()).thenAnswer((_) async => null);
       // Provide default stubs for notification service
@@ -44,7 +48,7 @@ void main() {
           notificationServiceProvider.overrideWithValue(
             mockNotificationService,
           ),
-          strapiClientProvider.overrideWithValue(strapi_mocks.MockStrapiClient()),
+          strapiClientProvider.overrideWithValue(mockStrapiClient),
         ],
       );
       authNotifier = container.read(authProvider.notifier);
@@ -647,13 +651,14 @@ void main() {
         expect(authNotifier.state.isAuthenticated, false);
       });
 
-      test('isAuthenticated should be false when user is null', () {
+      test('isAuthenticated should be true with jwt even when user is null '
+          '(supports offline app-start where user fetch failed)', () {
         authNotifier.state = authNotifier.state.copyWith(
           jwt: 'test-jwt',
           user: null,
         );
 
-        expect(authNotifier.state.isAuthenticated, false);
+        expect(authNotifier.state.isAuthenticated, true);
       });
 
       test('should handle state transitions correctly', () {
@@ -762,8 +767,13 @@ void main() {
 
         // Stub StrapiClient to return a valid response for getCurrentUser
         final freshStrapiClient = strapi_mocks.MockStrapiClient();
-        when(freshStrapiClient.get(any, queryParams: anyNamed('queryParams'), useUserAuth: anyNamed('useUserAuth')))
-            .thenAnswer((_) async => http.Response('{"id":1}', 401));
+        when(
+          freshStrapiClient.get(
+            any,
+            queryParams: anyNamed('queryParams'),
+            useUserAuth: anyNamed('useUserAuth'),
+          ),
+        ).thenAnswer((_) async => http.Response('{"id":1}', 401));
         when(freshStrapiClient.baseUrl).thenReturn('http://test');
 
         final freshContainer = ProviderContainer(
@@ -791,5 +801,63 @@ void main() {
         freshContainer.dispose();
       });
     });
+
+    group('getCurrentUser offline robustness', () {
+      test(
+        'preserves jwt in state when /api/users/me throws (no network)',
+        () async {
+          // Fresh setup so the initializeAuth-on-construct ran with the
+          // setUp default (null token, no fetch). We then trigger
+          // getCurrentUser() manually with the new stubs.
+          when(
+            mockSessionManager.getToken(),
+          ).thenAnswer((_) async => 'cached-jwt');
+          when(
+            mockStrapiClient.get(
+              any,
+              queryParams: anyNamed('queryParams'),
+              useUserAuth: anyNamed('useUserAuth'),
+            ),
+          ).thenThrow(const SocketException('offline'));
+
+          await authNotifier.getCurrentUser();
+
+          expect(authNotifier.state.jwt, 'cached-jwt');
+          expect(authNotifier.state.user, isNull);
+          expect(authNotifier.state.isInitialized, isTrue);
+          // isAuthenticated is now jwt-only — user can be null offline.
+          expect(authNotifier.state.isAuthenticated, isTrue);
+          // Token was NOT cleared by the failing offline path.
+          verifyNever(mockSessionManager.clearToken());
+        },
+      );
+
+      test(
+        'clears token + state when /api/users/me returns 401 (real logout)',
+        () async {
+          when(
+            mockSessionManager.getToken(),
+          ).thenAnswer((_) async => 'invalid-jwt');
+          when(
+            mockSessionManager.clearToken(),
+          ).thenAnswer((_) async => Future.value());
+          when(
+            mockStrapiClient.get(
+              any,
+              queryParams: anyNamed('queryParams'),
+              useUserAuth: anyNamed('useUserAuth'),
+            ),
+          ).thenAnswer((_) async => http.Response('{}', 401));
+
+          await authNotifier.getCurrentUser();
+
+          expect(authNotifier.state.jwt, isNull);
+          expect(authNotifier.state.user, isNull);
+          expect(authNotifier.state.isAuthenticated, isFalse);
+          verify(mockSessionManager.clearToken()).called(1);
+        },
+      );
+    });
+
   });
 }

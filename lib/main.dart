@@ -7,6 +7,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jup/features/achievements/controllers/scan_handler.dart';
+import 'package:jup/features/achievements/controllers/scan_launcher.dart';
 import 'package:jup/features/auth/controllers/auth_provider.dart';
 import 'package:jup/firebase_options.dart';
 import 'package:jup/router/controllers/app_router.dart';
@@ -19,6 +21,7 @@ import 'package:jup/shared/services/deep_link_service.dart';
 import 'package:jup/shared/services/matomo_route_observer.dart';
 import 'package:jup/shared/services/matomo_service.dart';
 import 'package:jup/shared/theme/theme.dart';
+import 'package:jup/shared/widgets/login_required_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player_media_kit/video_player_media_kit.dart';
 
@@ -132,6 +135,14 @@ class _JupAppState extends ConsumerState<JupApp> {
     final context = navigatorKey.currentContext;
     if (context == null) return;
 
+    // Handle Jugendplatz scan deep links: jup://scan/<slug> or
+    // https://<host>/scan/<slug>
+    final scanSlug = _deepLinkService.parseScanSlug(uri);
+    if (scanSlug != null) {
+      _handleScanDeepLink(scanSlug);
+      return;
+    }
+
     // Handle shorts deep links: jup://shorts/123
     final shortsId = _deepLinkService.parseShortsId(uri);
     if (shortsId != null) {
@@ -173,9 +184,23 @@ class _JupAppState extends ConsumerState<JupApp> {
     final surveyId = _deepLinkService.parseSurveyId(uri);
     if (surveyId != null) {
       // Surveys don't have detail pages, navigate to overview
-      _appRouter.navigate(const SurveysNavigationRoute());
+      _appRouter.navigate(const SurveysOverviewRoute());
       return;
     }
+  }
+
+  /// Bring the user into the Achievements section and — when logged in —
+  /// record the scan (showing the unlock/result dialog). Logged-out users get
+  /// the login prompt instead.
+  void _handleScanDeepLink(String slug) {
+    _appRouter.navigate(const AchievementsLandingRoute());
+    final context = navigatorKey.currentContext;
+    if (context == null) return;
+    if (!ref.read(authProvider).isAuthenticated) {
+      LoginRequiredDialog.show(context, message: kAchievementsLoginMessage);
+      return;
+    }
+    processScan(context, ref, slug);
   }
 
   @override
@@ -198,7 +223,7 @@ class _JupAppState extends ConsumerState<JupApp> {
     }
 
     return MaterialApp.router(
-      title: 'JUP',
+      title: 'JUP!',
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: themeMode,
